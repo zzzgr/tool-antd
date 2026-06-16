@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* 明亮模式 - 清新自然 */
+  --app-bg: #fafaf9;
+  --app-text: #1c1917;
+  --app-title: #44403c;
+  --app-muted: #78716c;
+  --app-card-bg: #ffffff;
+  --app-card-border: #e7e5e4;
+  --app-card-hover-border: #78716c;
+  --app-card-hover-bg: #f5f5f4;
+  --app-link: #292524;
+  --app-icon-color: #60a5fa;
+  --app-icon-hover-color: #3b82f6;
+  --app-shadow: rgba(28, 25, 23, 0.08);
+  --app-shadow-hover: rgba(28, 25, 23, 0.12);
+  /* 首页标题：基底色 + 扫光高光色 */
+  --title-base: #44403c;
+  --title-shimmer: #1d4ed8;
+}
+
+:root[data-theme='dark'] {
+  /* 暗黑模式 - OLED 纯黑（省电护眼）：#000 底 + 近白文字 + 极淡边框分层 */
+  --app-bg: #000000;
+  --app-text: #ededed;
+  --app-title: #f5f5f5;
+  --app-muted: #8a8a8e;
+  --app-card-bg: #0c0c0d;
+  --app-card-border: #1f1f22;
+  --app-card-hover-border: #3a3a3f;
+  --app-card-hover-bg: #161618;
+  --app-link: #f5f5f5;
+  --app-icon-color: #60a5fa;
+  --app-icon-hover-color: #93c5fd;
+  --app-shadow: rgba(0, 0, 0, 0.6);
+  --app-shadow-hover: rgba(0, 0, 0, 0.8);
+  /* 暗色：近白基底 + 高亮发光蓝扫光，OLED 黑底上更醒目 */
+  --title-base: #f5f5f5;
+  --title-shimmer: #1d4ed8;
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--app-bg);
+  color: var(--app-text);
+  transition:
+    background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
