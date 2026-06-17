@@ -6,6 +6,7 @@ import viteCompression from 'vite-plugin-compression'
 import topLevelAwait from 'vite-plugin-top-level-await'
 import copy from 'rollup-plugin-copy'
 import monacoEditorPlugin from 'vite-plugin-monaco-editor'
+import zipPack from 'vite-plugin-zip-pack'
 
 export default defineConfig({
   plugins: [
@@ -29,6 +30,13 @@ export default defineConfig({
 
     copy({
       targets: [{ src: 'src/assets/tree-sitter.wasm', dest: 'dist' }]
+    }),
+
+    // build 时把 dist 打包成 dist.zip（dev 不触发）
+    zipPack({
+      inDir: 'dist',
+      outDir: '.',
+      outFileName: 'dist.zip'
     })
   ],
 
