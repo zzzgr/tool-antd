@@ -1,10 +1,5 @@
 <template>
   <div class="gif-page">
-    <div class="page-header">
-      <h1 class="page-title">GIF 滚动生成</h1>
-      <p class="page-subtitle">上传图片，一键生成循环滚动的 GIF 表情包</p>
-    </div>
-
     <div class="gif-layout">
       <!-- 左：控制区 -->
       <section class="panel control-panel">
@@ -32,6 +27,15 @@
         </div>
 
         <div class="actions">
+          <a-button v-if="sourceImage" block @click="openCrop">
+            <template #icon><scissor-outlined /></template>
+            裁剪图片
+          </a-button>
+
+          <a-button v-if="sourceImage && sourceImage !== originalImage" block @click="resetCrop">
+            重置为原图
+          </a-button>
+
           <a-button
             type="primary"
             block
@@ -85,6 +89,29 @@
         </div>
       </section>
     </div>
+
+    <!-- 裁剪弹窗 -->
+    <a-modal
+      v-model:open="cropVisible"
+      title="裁剪图片"
+      width="760px"
+      :destroy-on-close="true"
+      ok-text="确认裁剪"
+      cancel-text="取消"
+      @ok="confirmCrop"
+    >
+      <div class="crop-wrap">
+        <VueCropper
+          ref="cropper"
+          :img="originalImage"
+          :auto-crop="true"
+          :fixed="false"
+          :center-box="true"
+          :full="true"
+          output-type="png"
+        />
+      </div>
+    </a-modal>
   </div>
 </template>
 
@@ -95,16 +122,26 @@ import {
   DownloadOutlined,
   FileImageOutlined,
   InboxOutlined,
+  ScissorOutlined,
   ThunderboltOutlined
 } from '@ant-design/icons-vue'
+import { VueCropper } from 'vue-cropper'
+import 'vue-cropper/dist/index.css'
 import GIF from 'gif.js'
 
-const sourceImage = ref<string>('')
+const MAX_FILE_SIZE = 5 * 1024 * 1024 // 上传图片大小上限 5MB
+
+const originalImage = ref<string>('') // 上传的原图（裁剪基于它）
+const sourceImage = ref<string>('') // 当前用于预览/生成的图（可能已裁剪）
 const speed = ref<'low' | 'medium' | 'high'>('medium')
 const generating = ref<boolean>(false)
 const progress = ref<number>(0)
 const generatedGif = ref<string>('')
 const gifInfo = ref<{ width: number; height: number; size: string } | null>(null)
+
+// 裁剪
+const cropVisible = ref<boolean>(false)
+const cropper = ref<any>(null)
 
 // 速度配置 (每秒滚动的像素数)
 const speedConfig = {
@@ -128,15 +165,43 @@ const revokeGif = () => {
 
 // 处理文件上传
 const handleUpload = (file: File) => {
+  if (file.size > MAX_FILE_SIZE) {
+    message.error('图片大小不能超过 5MB')
+    return false
+  }
   const reader = new FileReader()
   reader.onload = (e) => {
-    sourceImage.value = e.target?.result as string
+    originalImage.value = e.target?.result as string
+    sourceImage.value = originalImage.value
     revokeGif()
     gifInfo.value = null
     message.success('图片上传成功')
   }
   reader.readAsDataURL(file)
   return false
+}
+
+// 打开裁剪
+const openCrop = () => {
+  cropVisible.value = true
+}
+
+// 确认裁剪
+const confirmCrop = () => {
+  cropper.value?.getCropData((data: string) => {
+    sourceImage.value = data
+    revokeGif()
+    gifInfo.value = null
+    cropVisible.value = false
+    message.success('裁剪完成')
+  })
+}
+
+// 重置为原图
+const resetCrop = () => {
+  sourceImage.value = originalImage.value
+  revokeGif()
+  gifInfo.value = null
 }
 
 // 处理拖拽
@@ -180,6 +245,9 @@ const generateGif = async () => {
       img.onload = resolve
     })
 
+    // gif.js 会缓存每一帧像素，帧数过多会 OOM，故设上限（仅影响流畅度，不损画质）
+    const MAX_FRAMES = 150
+
     const scaledWidth = img.width
     const scaledHeight = img.height
 
@@ -191,9 +259,17 @@ const generateGif = async () => {
     // 计算滚动参数
     const fps = 30 // 固定30帧每秒，保证流畅度
     const pixelsPerSecond = speedConfig[speed.value]
-    const pixelsPerFrame = pixelsPerSecond / fps // 每帧移动的像素数
-    const totalFrames = Math.ceil(scaledHeight / pixelsPerFrame) // 总帧数
-    const delay = Math.round(1000 / fps) // 每帧延迟（毫秒）
+    let pixelsPerFrame = pixelsPerSecond / fps // 每帧移动的像素数
+    let totalFrames = Math.ceil(scaledHeight / pixelsPerFrame) // 总帧数
+    let delay = Math.round(1000 / fps) // 每帧延迟（毫秒）
+
+    // 帧数超限时降帧：保持滚动速度观感不变，仅降低帧率
+    if (totalFrames > MAX_FRAMES) {
+      totalFrames = MAX_FRAMES
+      pixelsPerFrame = scaledHeight / totalFrames
+      const loopSeconds = scaledHeight / pixelsPerSecond
+      delay = Math.round((loopSeconds * 1000) / totalFrames)
+    }
 
     const gif = new GIF({
       workers: 2,
@@ -448,6 +524,13 @@ onUnmounted(() => {
   }
 }
 
+/* 裁剪弹窗 */
+.crop-wrap {
+  width: 100%;
+  height: 60vh;
+  max-height: 520px;
+}
+
 /* 上传框 */
 .uploader :deep(.ant-upload-drag) {
   border-radius: 8px;
@@ -477,11 +560,16 @@ onUnmounted(() => {
 
   .gif-layout {
     flex-direction: column;
+    align-items: stretch;
     gap: 16px;
   }
 
   .control-panel {
     flex-basis: auto;
+    width: 100%;
+  }
+
+  .preview-panel {
     width: 100%;
   }
 }

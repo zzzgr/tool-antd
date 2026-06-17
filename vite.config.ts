@@ -48,7 +48,7 @@ export default defineConfig({
     https: false,
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:1140', // 目标url
+        target: 'http://4.200401.xyz:40006', // 目标url
         changeOrigin: true, //支持跨域
         rewrite: (path) => path.replace(/^\/api/, '')
       }

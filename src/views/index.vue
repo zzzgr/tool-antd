@@ -47,13 +47,6 @@ const allTool = [
     desc: 'JSON格式化、压缩、转义'
   },
   {
-    path: '/picbed',
-    title: '图床',
-    icon: 'image',
-    iconColor: '#8b5cf6',
-    desc: '敬请期待~'
-  },
-  {
     path: '/codec',
     title: '编解码',
     icon: 'codec',
@@ -73,13 +66,6 @@ const allTool = [
     icon: 'text',
     iconColor: '#3b82f6',
     desc: '文本分享，支持markdown~'
-  },
-  {
-    path: '/videoparse',
-    title: '视频解析',
-    icon: 'video',
-    iconColor: '#f97316',
-    desc: '视频解析直链'
   },
   {
     path: '/diff',
