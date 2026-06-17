@@ -16,9 +16,9 @@
 import URL from './url/index.vue'
 import Base64 from './base64/index.vue'
 import Unicode from './unicode/index.vue'
-import { ref } from 'vue'
+import { useStorageRef } from '@/util/util'
 
-const activeKey = ref<String>('url')
+const activeKey = useStorageRef('codec:active-tab', 'url')
 </script>
 
 <style scoped></style>
