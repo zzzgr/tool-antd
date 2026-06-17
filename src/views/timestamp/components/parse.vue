@@ -16,7 +16,7 @@
         <a-radio-button value="1">毫秒</a-radio-button>
       </a-radio-group>
 
-      <div class="mt-2 cursor-pointer" @click="copy(result)">{{ result }}</div>
+      <div class="mt-2 copyable" @click="copy(result)">{{ result }}</div>
     </div>
   </div>
 

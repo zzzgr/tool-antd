@@ -103,18 +103,25 @@
               :has-siblings="item.hasSiblings"
             />
             <p v-else :key="index * 1" class="json-item">
-              <span class="json-key" v-triple-click="{ handler: oncopy, args: [item.key] }">
-                {{ isArray ? '' : '"' + item.key + '":' }}
+              <span class="json-key">
+                <template v-if="!isArray"
+                  >"<span
+                    class="copy-hit"
+                    v-triple-click="{ handler: oncopy, args: [item.key] }"
+                    v-long-press-copy="{ handler: oncopy, args: [item.key] }"
+                    >{{ item.key }}</span
+                  >":</template
+                >
               </span>
-              <span
-                :class="['json-value', getDataType(item.value)]"
-                v-triple-click="{ handler: oncopy, args: [formatValue(item.value)] }"
-              >
-                {{
-                  `${getDataType(item.value) === 'string' ? '"' : ''}${formatValue(item.value)}${
-                    getDataType(item.value) === 'string' ? '"' : ''
-                  }${index === items.length - 1 ? '' : ','}`
-                }}
+              <span :class="['json-value', getDataType(item.value)]"
+                ><template v-if="getDataType(item.value) === 'string'">"</template
+                ><span
+                  class="copy-hit"
+                  v-triple-click="{ handler: oncopy, args: [formatValue(item.value)] }"
+                  v-long-press-copy="{ handler: oncopy, args: [formatValue(item.value)] }"
+                  >{{ formatValue(item.value) }}</span
+                ><template v-if="getDataType(item.value) === 'string'">"</template
+                ><template v-if="index !== items.length - 1">,</template>
               </span>
             </p>
           </template>
@@ -130,6 +137,27 @@
 <script>
 import jsonView from './index' // export default jsonView
 import { copy } from '@/util/util' // export default jsonView
+
+// 复制成功：在下划线位置生成方块全息粒子，沿线升起飞散并淡出
+function spawnCopyParticles(el) {
+  const COUNT = 12
+  const layer = document.createElement('span')
+  layer.className = 'lpc-particles'
+  for (let i = 0; i < COUNT; i++) {
+    const p = document.createElement('i')
+    p.className = 'lpc-particle'
+    p.style.left = (8 + Math.random() * 84).toFixed(1) + '%' // 沿下划线分布
+    const tx = (Math.random() - 0.5) * 22
+    const ty = -(8 + Math.random() * 22) // 主要向上飘散
+    p.style.setProperty('--tx', tx.toFixed(1) + 'px')
+    p.style.setProperty('--ty', ty.toFixed(1) + 'px')
+    p.style.setProperty('--rot', Math.round(Math.random() * 240 - 120) + 'deg')
+    p.style.animationDelay = Math.round(Math.random() * 80) + 'ms'
+    layer.appendChild(p)
+  }
+  el.appendChild(layer)
+  setTimeout(() => layer.remove(), 800)
+}
 
 // export default jsonView
 
@@ -159,6 +187,59 @@ export default {
           binding.value.handler(binding.value.args)
         }
       })
+    },
+    // 长按复制：按住蓄力（文字抖动）→ 达成后复制并播放庆祝动效
+    longPressCopy(el, binding) {
+      el.__lpcBinding = binding.value
+      if (el.__lpcBound) return
+      el.__lpcBound = true
+
+      const DURATION = 600 // 长按达成时长（毫秒）
+      const VIZ_DELAY = 120 // 延迟显示下划线，避免普通点击闪现；其后充能动画 .48s 正好在 DURATION 处填满
+      let timer = null
+      let vizTimer = null
+      let cleanup = null
+      let pressing = false
+
+      const start = (e) => {
+        if (pressing) return
+        // 阻止鼠标按下触发文本选择拖拽（会误选页面其他内容）
+        if (e && e.type === 'mousedown' && e.cancelable) e.preventDefault()
+        pressing = true
+        clearTimeout(cleanup)
+        el.classList.remove('lpc-copied')
+        // 按住超过 VIZ_DELAY 才显示抖动，避免普通点击闪现
+        vizTimer = setTimeout(() => el.classList.add('lpc-charging'), VIZ_DELAY)
+        timer = setTimeout(() => {
+          pressing = false
+          clearTimeout(vizTimer)
+          el.classList.remove('lpc-charging')
+          const v = el.__lpcBinding
+          if (v) v.handler(v.args)
+          // 清除可能已产生的选区
+          const sel = window.getSelection && window.getSelection()
+          if (sel) sel.removeAllRanges()
+          // 庆祝动效：下划线淡出 + 方块全息粒子四散
+          el.classList.add('lpc-copied')
+          spawnCopyParticles(el)
+          cleanup = setTimeout(() => el.classList.remove('lpc-copied'), 600)
+        }, DURATION)
+      }
+
+      const cancel = () => {
+        if (!pressing) return
+        pressing = false
+        clearTimeout(timer)
+        clearTimeout(vizTimer)
+        el.classList.remove('lpc-charging')
+      }
+
+      el.addEventListener('mousedown', start)
+      el.addEventListener('mouseup', cancel)
+      el.addEventListener('mouseleave', cancel)
+      el.addEventListener('touchstart', start, { passive: true })
+      el.addEventListener('touchend', cancel)
+      el.addEventListener('touchcancel', cancel)
     }
   }
 }
@@ -167,4 +248,40 @@ export default {
 @import './style/index';
 @import './style/on-dark';
 @import './style/vs-code';
+</style>
+
+<!-- 粒子为 JS 动态生成、无 scoped 标记，样式需放全局 -->
+<style lang="less">
+.lpc-particles {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.lpc-particle {
+  position: absolute;
+  top: 0;
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0 0 -3.5px;
+  background: #3fb950;
+  opacity: 0;
+  will-change: opacity, transform;
+  animation: lpc-burst 0.6s ease-out forwards;
+}
+
+@keyframes lpc-burst {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1) rotate(0deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--tx), var(--ty)) scale(0.3) rotate(var(--rot));
+  }
+}
 </style>

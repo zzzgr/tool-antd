@@ -1,7 +1,8 @@
 <template>
-  <div class="clock" @click="copy(full)">
-    <span>{{ date }} {{ time }}</span
-    ><span class="clock-ms">.{{ ms }}</span>
+  <div class="clock">
+    <span class="copyable" @click="copy(full)">
+      <span>{{ date }} {{ time }}</span><span class="clock-ms">.{{ ms }}</span>
+    </span>
   </div>
 </template>
 
@@ -38,7 +39,6 @@ onUnmounted(() => {
 .clock {
   text-align: center;
   font-size: 1.25rem;
-  cursor: pointer;
   /* 等宽数字，避免毫秒刷新时整体宽度变化造成抖动 */
   font-variant-numeric: tabular-nums;
   font-feature-settings: 'tnum';

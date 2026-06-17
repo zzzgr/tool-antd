@@ -56,3 +56,25 @@ body {
     background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
     color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
+/* 点击复制：手指 + hover 轻微背景与阴影，提示可点 */
+.copyable {
+  cursor: pointer;
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 6px;
+  transition:
+    background-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+.copyable:hover {
+  background: var(--app-card-hover-bg);
+  box-shadow: 0 2px 8px var(--app-shadow);
+}
+
+.copyable:active {
+  transform: translateY(1px);
+  box-shadow: 0 1px 4px var(--app-shadow);
+}

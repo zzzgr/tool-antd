@@ -45,6 +45,51 @@
                 }
             }
 
+            // 复制命中区（key 名 / value 本体共用）：手指 + hover，不含引号/冒号/逗号
+            .copy-hit {
+                cursor: pointer;
+                position: relative;
+                display: inline-block;
+                vertical-align: baseline;
+                word-break: break-all;
+                padding: 0 2px;
+                margin: 0 -2px;
+                border-radius: 3px;
+                -webkit-touch-callout: none;
+                transition: background-color .18s ease, box-shadow .18s ease;
+                &:hover {
+                    background: rgba(127, 127, 127, 0.14);
+                    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.16);
+                }
+                // 长按蓄力 / 复制成功 共用底部线
+                &.lpc-charging::after,
+                &.lpc-copied::after {
+                    content: '';
+                    position: absolute;
+                    left: 0;
+                    right: 0;
+                    bottom: -1px;
+                    height: 2px;
+                    border-radius: 2px;
+                    background: #3fb950;
+                    box-shadow: 0 0 6px rgba(63, 185, 80, 0.7);
+                    transform-origin: left bottom;
+                    pointer-events: none;
+                    will-change: opacity, transform;
+                }
+                // 蓄力：下划线从左向右生长（约等于长按时长）
+                &.lpc-charging {
+                    user-select: none;
+                }
+                &.lpc-charging::after {
+                    animation: lpc-charge .48s linear forwards;
+                }
+                // 成功：下划线安静淡出（粒子当主角）
+                &.lpc-copied::after {
+                    animation: lpc-underline .5s ease forwards;
+                }
+            }
+
             .json-item {
                 margin: 0;
                 padding-left: 2rem;
@@ -93,3 +138,15 @@
             }
         }
     }
+
+// 长按蓄力：下划线从左向右生长
+@keyframes lpc-charge {
+    from { transform: scaleX(0) scaleY(1); opacity: .85; }
+    to   { transform: scaleX(1) scaleY(1); opacity: .85; }
+}
+
+// 复制成功：下划线安静淡出
+@keyframes lpc-underline {
+    0%   { opacity: 1; }
+    100% { opacity: 0; }
+}
