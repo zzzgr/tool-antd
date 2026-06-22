@@ -51,6 +51,7 @@ import { ArrowDownOutlined, ArrowUpOutlined, ClearOutlined } from '@ant-design/i
 
 import { onMounted, reactive, ref, toRaw, watch } from 'vue'
 import { useThemeStore } from '@/stores/theme'
+import { useDiffBridgeStore } from '@/stores/diffBridge'
 
 import hljs from 'highlight.js/lib/core'
 import json from 'highlight.js/lib/languages/json'
@@ -96,6 +97,7 @@ hljs.registerLanguage('swift', swift)
 hljs.registerLanguage('bash', bash)
 
 const themeStore = useThemeStore()
+const bridge = useDiffBridgeStore()
 
 // 下拉可选语言（monaco language id + 展示名）
 const languageOptions = ref<{ id: string; label: string }[]>([
@@ -317,6 +319,12 @@ onMounted(() => {
     contextMenuGroupId: 'navigation', // 所属菜单的分组
     run: () => nextDiff() // 点击后执行的操作
   })
+
+  // 来自「文本处理」页的一键对比：回填左右两侧后清除标记，避免后续直接进入时残留
+  if (bridge.pending) {
+    setModel(bridge.left, bridge.right)
+    bridge.consume()
+  }
 })
 
 watch(

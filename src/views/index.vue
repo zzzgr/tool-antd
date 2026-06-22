@@ -68,6 +68,13 @@ const allTool = [
     desc: '文本分享，支持markdown~'
   },
   {
+    path: '/textproc',
+    title: '文本处理',
+    icon: 'textproc',
+    iconColor: '#8b5cf6',
+    desc: '分隔符转换、查找替换、排序去重'
+  },
+  {
     path: '/diff',
     title: '文本比较',
     icon: 'diff',

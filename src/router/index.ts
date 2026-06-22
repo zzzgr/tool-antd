@@ -70,6 +70,15 @@ const router = createRouter({
     },
 
     {
+      path: '/textproc',
+      name: 'textproc',
+      component: () => import('@/views/textproc/index.vue'),
+      meta: {
+        title: '文本处理'
+      }
+    },
+
+    {
       path: '/videoparse',
       name: 'videoparse',
       component: () => import('@/views/videoparse/index.vue'),

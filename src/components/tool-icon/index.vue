@@ -14,6 +14,7 @@ import videoIcon from '@/assets/icons/video.svg?raw'
 import diffIcon from '@/assets/icons/diff.svg?raw'
 import uaIcon from '@/assets/icons/ua.svg?raw'
 import gifIcon from '@/assets/icons/gif.svg?raw'
+import textprocIcon from '@/assets/icons/textproc.svg?raw'
 
 const props = withDefaults(
   defineProps<{
@@ -37,7 +38,8 @@ const iconMap: Record<string, string> = {
   video: videoIcon,
   diff: diffIcon,
   ua: uaIcon,
-  gif: gifIcon
+  gif: gifIcon,
+  textproc: textprocIcon
 }
 
 const iconSvg = computed(() => {
