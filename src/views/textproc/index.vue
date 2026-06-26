@@ -35,6 +35,7 @@
         <a-button-group size="small">
           <a-button @click="sortAsc">升序</a-button>
           <a-button @click="sortDesc">降序</a-button>
+          <a-button @click="showDuplicatePreview">标记重复</a-button>
           <a-button @click="dedupe">去重</a-button>
           <a-button @click="removeEmptyLines">去空行</a-button>
           <a-button @click="trimLines">去首尾空格</a-button>
@@ -65,6 +66,34 @@
       <span>{{ lineCount }} 行 · {{ charCount }} 字符</span>
       <span class="slot-info">暂存：左 {{ bridge.left.length }} 字 / 右 {{ bridge.right.length }} 字</span>
     </div>
+
+    <!-- 标记重复预览：按行高亮重复项，所见即所得（判定规则与 dedupe 同源） -->
+    <a-modal v-model:open="dupModalOpen" title="标记重复" :width="720" class="dup-modal">
+      <div class="dup-summary">
+        <a-tag>共 {{ dupLines.length }} 行</a-tag>
+        <a-tag color="warning">重复 {{ dupDuplicateCount }} 行</a-tag>
+        <a-tag color="error">涉及 {{ dupValueCount }} 个值</a-tag>
+        <span v-if="dupDuplicateCount === 0" class="dup-empty">未发现重复行</span>
+      </div>
+      <div class="dup-list">
+        <div
+          v-for="item in dupLines"
+          :key="item.index"
+          class="dup-line"
+          :class="{ 'is-dup': item.dup }"
+        >
+          <span class="dup-no">{{ item.index + 1 }}</span>
+          <span class="dup-text">{{ item.text }}</span>
+          <span v-if="item.dup" class="dup-count">×{{ item.occurrence }}</span>
+        </div>
+      </div>
+      <template #footer>
+        <a-button @click="dupModalOpen = false">取消</a-button>
+        <a-button type="primary" :disabled="dupDuplicateCount === 0" @click="confirmDedupe">
+          去重
+        </a-button>
+      </template>
+    </a-modal>
   </div>
 </template>
 
@@ -219,6 +248,37 @@ const removeEmptyLines = () => apply((s) => toLines(s).filter((x) => x.trim() !=
 const trimLines = () => apply((s) => toLines(s).map((x) => x.trim()).join('\n'))
 const removeInlineSpaces = () =>
   apply((s) => toLines(s).map((x) => x.replace(/[ \t]+/g, '')).join('\n'))
+
+// —— 标记重复预览 ——
+// 判定规则与 dedupe 同源：以原始行文本为 key（不 trim、大小写敏感），
+// 首次出现保留，第 2 次及以后标记为重复，保证"高亮的行 = 去重会删的行"
+const dupModalOpen = ref(false)
+const dupAnalysis = computed(() => {
+  const normalized = normalize(text.value)
+  const lines = normalized === '' ? [] : toLines(normalized)
+  const seen = new Map<string, number>()
+  const result = lines.map((text, index) => {
+    const occurrence = (seen.get(text) ?? 0) + 1
+    seen.set(text, occurrence)
+    return { index, text, occurrence, dup: occurrence > 1 }
+  })
+  const dupItems = result.filter((x) => x.dup)
+  return {
+    lines: result,
+    duplicateCount: dupItems.length,
+    valueCount: dupItems.length ? new Set(dupItems.map((x) => x.text)).size : 0,
+  }
+})
+const dupLines = computed(() => dupAnalysis.value.lines)
+const dupDuplicateCount = computed(() => dupAnalysis.value.duplicateCount)
+const dupValueCount = computed(() => dupAnalysis.value.valueCount)
+const showDuplicatePreview = () => {
+  dupModalOpen.value = true
+}
+const confirmDedupe = () => {
+  dupModalOpen.value = false
+  dedupe()
+}
 
 // —— 操作 ——
 const undo = () => {
@@ -403,5 +463,56 @@ const lineCount = computed(() => (text.value === '' ? 0 : normalize(text.value).
 
 .slot-info {
   margin-left: auto;
+}
+
+/* —— 标记重复弹窗 —— */
+.dup-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.dup-empty {
+  color: var(--app-muted);
+  font-size: 12px;
+}
+.dup-list {
+  max-height: 56vh;
+  overflow: auto;
+  border: 1px solid var(--app-card-border);
+  border-radius: 6px;
+  background: var(--app-card-bg);
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.dup-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 10px;
+}
+.dup-line.is-dup {
+  background: color-mix(in srgb, #f59e0b 16%, var(--app-card-bg));
+  border-inline-start: 3px solid #f59e0b;
+}
+.dup-no {
+  flex: 0 0 auto;
+  min-width: 3em;
+  text-align: right;
+  color: var(--app-muted);
+  user-select: none;
+}
+.dup-text {
+  flex: 1 1 auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.dup-count {
+  flex: 0 0 auto;
+  color: #f59e0b;
+  font-size: 12px;
+  opacity: 0.85;
 }
 </style>
