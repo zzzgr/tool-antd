@@ -15,6 +15,9 @@ import diffIcon from '@/assets/icons/diff.svg?raw'
 import uaIcon from '@/assets/icons/ua.svg?raw'
 import gifIcon from '@/assets/icons/gif.svg?raw'
 import textprocIcon from '@/assets/icons/textproc.svg?raw'
+import uuidIcon from '@/assets/icons/uuid.svg?raw'
+import regexIcon from '@/assets/icons/regex.svg?raw'
+import imgbase64Icon from '@/assets/icons/imgbase64.svg?raw'
 
 const props = withDefaults(
   defineProps<{
@@ -39,7 +42,10 @@ const iconMap: Record<string, string> = {
   diff: diffIcon,
   ua: uaIcon,
   gif: gifIcon,
-  textproc: textprocIcon
+  textproc: textprocIcon,
+  uuid: uuidIcon,
+  regex: regexIcon,
+  imgbase64: imgbase64Icon
 }
 
 const iconSvg = computed(() => {

@@ -55,11 +55,19 @@
     </div>
 
     <div class="io-block">
-      <a-textarea
-        v-model:value="text"
-        class="io-input"
-        placeholder="在此粘贴 / 输入文本，使用上方按钮处理（操作可撤销）"
-      />
+      <div class="editor-wrap">
+        <div ref="gutterEl" class="gutter">
+          <span v-for="n in lineCount" :key="n">{{ n }}</span>
+        </div>
+        <a-textarea
+          ref="textareaEl"
+          v-model:value="text"
+          class="io-input"
+          :wrap="false"
+          placeholder="在此粘贴 / 输入文本，使用上方按钮处理（操作可撤销）"
+          @scroll="onTextareaScroll"
+        />
+      </div>
     </div>
 
     <div class="statusbar">
@@ -346,6 +354,13 @@ const goDiff = () => {
 // —— 状态栏 ——
 const charCount = computed(() => text.value.length)
 const lineCount = computed(() => (text.value === '' ? 0 : normalize(text.value).split('\n').length))
+
+// —— 行号同步滚动 ——
+const gutterEl = ref<HTMLElement | null>(null)
+const textareaEl = ref<any>(null)
+const onTextareaScroll = (e: Event) => {
+  if (gutterEl.value) gutterEl.value.scrollTop = (e.target as HTMLElement).scrollTop
+}
 </script>
 
 <style scoped>
@@ -435,10 +450,37 @@ const lineCount = computed(() => (text.value === '' ? 0 : normalize(text.value).
   flex-direction: column;
 }
 
+.editor-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  padding-bottom: 34px; /* 给底部 statusbar 让位 */
+}
+
+.gutter {
+  flex: 0 0 auto;
+  min-height: 0;
+  overflow: hidden;
+  padding: 8px 8px 8px 10px;
+  text-align: right;
+  color: var(--app-muted);
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  user-select: none;
+  background: color-mix(in srgb, var(--app-card-bg) 60%, transparent);
+  border-right: 1px solid var(--app-card-border);
+  border-radius: 4px 0 0 4px;
+}
+
+.gutter span {
+  display: block;
+}
+
 .io-input {
   flex: 1;
   min-height: 0;
-  padding-bottom: 34px;
+  border-radius: 0 4px 4px 0;
   font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
   font-size: 13px;
   line-height: 1.6;

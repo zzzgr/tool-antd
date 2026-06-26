@@ -9,6 +9,7 @@
       <a-button-group size="small">
         <a-button type="primary" @click="onEncode">编码</a-button>
         <a-button type="primary" @click="onDecode">解码</a-button>
+        <a-button @click="onAuto">自动</a-button>
         <a-button @click="onSwap">交换</a-button>
         <a-button @click="copy(result)">复制结果</a-button>
       </a-button-group>
@@ -39,6 +40,23 @@ const onDecode = () => {
 }
 const onSwap = () => {
   ;[text.value, result.value] = [result.value, text.value]
+}
+// 自动识别：若是合法 base64 且解码后再编码能还原原文，视为已编码 → 解码，否则 → 编码
+const onAuto = () => {
+  const t = text.value.trim()
+  const isB64 = /^[A-Za-z0-9+/]*={0,2}$/.test(t) && t.length % 4 === 0 && t.length > 0
+  if (isB64) {
+    try {
+      const decoded = Base64.decode(t)
+      if (Base64.encode(decoded) === t) {
+        result.value = decoded
+        return
+      }
+    } catch {
+      /* 降级到编码 */
+    }
+  }
+  onEncode()
 }
 </script>
 

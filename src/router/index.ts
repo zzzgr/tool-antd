@@ -105,6 +105,33 @@ const router = createRouter({
       }
     },
 
+    {
+      path: '/uuid',
+      name: 'uuid',
+      component: () => import('@/views/uuid/index.vue'),
+      meta: {
+        title: 'UUID 生成'
+      }
+    },
+
+    {
+      path: '/regex',
+      name: 'regex',
+      component: () => import('@/views/regex/index.vue'),
+      meta: {
+        title: '正则测试'
+      }
+    },
+
+    {
+      path: '/imgbase64',
+      name: 'imgbase64',
+      component: () => import('@/views/imgbase64/index.vue'),
+      meta: {
+        title: '图片 Base64'
+      }
+    },
+
     { path: '/:pathMatch(.*)', redirect: '/' }
   ]
 })

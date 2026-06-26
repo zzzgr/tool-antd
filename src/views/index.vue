@@ -94,6 +94,27 @@ const allTool = [
     icon: 'gif',
     iconColor: '#ec4899',
     desc: '图片转滚动GIF表情包'
+  },
+  {
+    path: '/uuid',
+    title: 'UUID',
+    icon: 'uuid',
+    iconColor: '#0ea5e9',
+    desc: '批量生成 UUID'
+  },
+  {
+    path: '/regex',
+    title: '正则测试',
+    icon: 'regex',
+    iconColor: '#22c55e',
+    desc: '正则匹配、分组高亮'
+  },
+  {
+    path: '/imgbase64',
+    title: '图片Base64',
+    icon: 'imgbase64',
+    iconColor: '#f97316',
+    desc: '图片与 Base64 互转'
   }
 ]
 

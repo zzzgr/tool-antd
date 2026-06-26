@@ -9,6 +9,7 @@
       <a-button-group size="small">
         <a-button type="primary" @click="onEncode">编码</a-button>
         <a-button type="primary" @click="onDecode">解码</a-button>
+        <a-button @click="onAuto">自动</a-button>
         <a-button @click="onSwap">交换</a-button>
         <a-button @click="copy(result)">复制结果</a-button>
       </a-button-group>
@@ -43,6 +44,11 @@ const onDecode = () => {
 }
 const onSwap = () => {
   ;[text.value, result.value] = [result.value, text.value]
+}
+// 自动识别：含 %XX 视为已编码 → 解码，否则 → 编码
+const onAuto = () => {
+  if (/%[0-9A-Fa-f]{2}/.test(text.value)) onDecode()
+  else onEncode()
 }
 </script>
 
