@@ -3,6 +3,7 @@
     <!-- 工具按钮 -->
     <div class="mb-2">
       <a-button-group size="small">
+        <a-button type="primary" @click="format()">格式化</a-button>
         <a-button type="primary" @click="compress()">压缩</a-button>
         <a-button type="primary" @click="unEscape()">去除转义</a-button>
         <a-button type="primary" @click="escape()">转义</a-button>
@@ -81,6 +82,8 @@
 import JsonView from '@/components/json-view/index.vue'
 import { computed, onMounted, onBeforeUnmount, reactive, ref, watch, nextTick } from 'vue'
 import * as monaco from 'monaco-editor'
+import { jsonrepair } from 'jsonrepair'
+import { message } from 'ant-design-vue'
 import { copy } from '@/util/util'
 import { useThemeStore } from '@/stores/theme'
 
@@ -146,14 +149,23 @@ const insertSnippet = (tpl) => {
 /* ---------------- 状态推导 ---------------- */
 
 // JSON 解析状态
+// 降级链：1) 整段宽松解析（单 JSON，含截断修复）→ 2) 混杂文本提取多个 JSON 块合并成数组 → 3) 报错
 const parseState = computed(() => {
   const t = (rawText.value || '').trim()
   if (!t) return { empty: true, error: null, value: undefined }
+  // 1) 单 JSON（合法优先，截断则修复）
+  const loose = parseLoose(t)
+  if (loose !== null) return { empty: false, error: null, value: loose }
+  // 2) 混杂文本：提取所有 JSON 块合并成数组
+  const blocks = extractJsonBlocks(t)
+  if (blocks.length > 0) return { empty: false, error: null, value: blocks }
+  // 3) 都失败：保持原报错逻辑
   try {
-    return { empty: false, error: null, value: JSON.parse(t) }
+    JSON.parse(t)
   } catch (e) {
     return { empty: false, error: e.message, value: undefined }
   }
+  return { empty: false, error: '解析失败', value: undefined }
 })
 
 // 过滤表达式执行状态
@@ -211,6 +223,64 @@ const jsonIconColor = computed(() =>
 
 /* ---------------- Monaco 编辑器 ---------------- */
 
+// 宽松解析：合法 JSON 直接 parse；不完整 JSON 用 jsonrepair 修复后再 parse；都失败返回 null
+const parseLoose = (text) => {
+  try {
+    return JSON.parse(text)
+  } catch {
+    try {
+      return JSON.parse(jsonrepair(text))
+    } catch {
+      return null
+    }
+  }
+}
+
+// 从混杂文本里提取所有 JSON 块（按 { / [ 起始，状态机匹配闭合）。
+// 每个 candidate 走 parseLoose（合法优先，截断则修复）；解析失败的块丢弃。
+// 返回解析成功的值数组；一个都没有返回空数组。
+const extractJsonBlocks = (text) => {
+  const blocks = []
+  const starts = []
+  let i = 0
+  const len = text.length
+  while (i < len) {
+    const ch = text[i]
+    if (ch === '{' || ch === '[') {
+      // 从此处开始匹配一个完整 JSON 块
+      let depth = 0
+      let inStr = false
+      let escape = false
+      let j = i
+      for (; j < len; j++) {
+        const c = text[j]
+        if (inStr) {
+          if (escape) escape = false
+          else if (c === '\\') escape = true
+          else if (c === '"') inStr = false
+          continue
+        }
+        if (c === '"') inStr = true
+        else if (c === '{' || c === '[') depth++
+        else if (c === '}' || c === ']') {
+          depth--
+          if (depth === 0) {
+            j++
+            break
+          }
+        }
+      }
+      const candidate = text.slice(i, j)
+      const parsed = parseLoose(candidate)
+      if (parsed !== null) blocks.push(parsed)
+      i = j
+      continue
+    }
+    i++
+  }
+  return blocks
+}
+
 const moveCursorToStart = () => {
   if (!editor) return
   editor.setPosition({ lineNumber: 1, column: 1 })
@@ -221,12 +291,9 @@ const autoFormat = () => {
   if (!editor) return
   const text = editor.getValue().trim()
   if (!text) return
-  let parsed
-  try {
-    parsed = JSON.parse(text)
-  } catch {
-    return // 非法 JSON 不格式化，仅在右侧报错
-  }
+  // 合法 JSON 直接格式化；不完整 JSON 用 jsonrepair 修复后再格式化；都失败则不处理（右侧报错）
+  const parsed = parseLoose(text)
+  if (parsed === null) return
   const formatted = JSON.stringify(parsed, null, 2)
   if (formatted === editor.getValue()) return
   const model = editor.getModel()
@@ -293,25 +360,71 @@ watch(
 
 /* ---------------- 工具按钮（作用于编辑器内容） ---------------- */
 
+// 手动格式化：合法 JSON 直接缩进；不完整 JSON 用 jsonrepair 修复后再格式化（会改变原文）
+const format = () => {
+  if (!editor) return
+  const text = editor.getValue().trim()
+  if (!text) return
+  const parsed = parseLoose(text)
+  if (parsed === null) {
+    message.error('无法格式化：JSON 不可解析')
+    return
+  }
+  const formatted = JSON.stringify(parsed, null, 2)
+  if (formatted === editor.getValue()) return
+  const model = editor.getModel()
+  const pos = editor.getPosition()
+  formatting = true
+  model.pushEditOperations([], [{ range: model.getFullModelRange(), text: formatted }], () => null)
+  formatting = false
+  if (pos) editor.setPosition(pos)
+}
+
 const compress = () => {
   if (!editor) return
   const text = editor.getValue().trim()
   if (!text) return
+  let compressed
   try {
-    editor.setValue(JSON.stringify(JSON.parse(text)))
+    compressed = JSON.stringify(JSON.parse(text))
   } catch {
     /* 非法 JSON 时忽略，右侧已报错 */
+    return
   }
+  if (compressed === editor.getValue()) return
+  // 写回期间屏蔽 autoFormat，避免压缩结果又被自动展开
+  formatting = true
+  editor.setValue(compressed)
+  formatting = false
 }
 
+// 转义：把整段文本转为 JSON 字符串字面量（可直接放进 Java/JS 的 "..." 中）
 const escape = () => {
   if (!editor) return
-  editor.setValue(editor.getValue().replace(/\\/g, '\\\\').replace(/"/g, '\\"'))
+  const escaped = JSON.stringify(editor.getValue())
+  formatting = true
+  editor.setValue(escaped)
+  formatting = false
 }
 
+// 去除转义：把 JSON 字符串字面量还原为原始文本（输入需是合法的带引号字符串）
 const unEscape = () => {
   if (!editor) return
-  editor.setValue(editor.getValue().replace(/\\\\/g, '\\').replace(/\\"/g, '"'))
+  const text = editor.getValue().trim()
+  let unescaped
+  try {
+    unescaped = JSON.parse(text)
+  } catch (e) {
+    message.error('无法去除转义：内容不是合法的字符串字面量')
+    return
+  }
+  if (typeof unescaped !== 'string') {
+    message.error('无法去除转义：内容不是字符串（而是 ' + typeof unescaped + '）')
+    return
+  }
+  formatting = true
+  editor.setValue(unescaped)
+  formatting = false
 }
 
 /* ---------------- 复制 ---------------- */
