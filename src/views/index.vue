@@ -115,6 +115,13 @@ const allTool = [
     icon: 'imgbase64',
     iconColor: '#f97316',
     desc: '图片与 Base64 互转'
+  },
+  {
+    path: '/jwt',
+    title: 'JWT 解析',
+    icon: 'jwt',
+    iconColor: '#a855f7',
+    desc: '解析 JWT，查看 Header/Payload 与时间'
   }
 ]
 

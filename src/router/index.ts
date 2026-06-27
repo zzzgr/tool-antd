@@ -61,12 +61,18 @@ const router = createRouter({
     {
       path: '/ace',
       name: 'ace',
-      component: () => import('@/views/ace/index.vue')
+      component: () => import('@/views/ace/index.vue'),
+      meta: {
+        title: '代码编辑器'
+      }
     },
     {
       path: '/diff',
       name: 'editorDiff',
-      component: () => import('@/views/editorDiff/index.vue')
+      component: () => import('@/views/editorDiff/index.vue'),
+      meta: {
+        title: '文本比较'
+      }
     },
 
     {
@@ -129,6 +135,15 @@ const router = createRouter({
       component: () => import('@/views/imgbase64/index.vue'),
       meta: {
         title: '图片 Base64'
+      }
+    },
+
+    {
+      path: '/jwt',
+      name: 'jwt',
+      component: () => import('@/views/jwt/index.vue'),
+      meta: {
+        title: 'JWT 解析'
       }
     },
 

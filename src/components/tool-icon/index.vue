@@ -18,6 +18,7 @@ import textprocIcon from '@/assets/icons/textproc.svg?raw'
 import uuidIcon from '@/assets/icons/uuid.svg?raw'
 import regexIcon from '@/assets/icons/regex.svg?raw'
 import imgbase64Icon from '@/assets/icons/imgbase64.svg?raw'
+import jwtIcon from '@/assets/icons/jwt.svg?raw'
 
 const props = withDefaults(
   defineProps<{
@@ -45,7 +46,8 @@ const iconMap: Record<string, string> = {
   textproc: textprocIcon,
   uuid: uuidIcon,
   regex: regexIcon,
-  imgbase64: imgbase64Icon
+  imgbase64: imgbase64Icon,
+  jwt: jwtIcon
 }
 
 const iconSvg = computed(() => {
