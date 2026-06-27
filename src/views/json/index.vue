@@ -53,19 +53,25 @@
 
     <!-- 底部：过滤表达式（整行宽） -->
     <div ref="filterAreaRef" class="filter-bar mt-2">
+      <a-radio-group v-model:value="mode" size="small" class="mode-switch mb-2">
+        <a-radio-button value="js">JS 表达式</a-radio-button>
+        <a-radio-button value="jsonpath">JSONPath</a-radio-button>
+      </a-radio-group>
+
       <div ref="filterBarRef">
+        <!-- 前缀（this. / $.）固定显示，输入框只写后续部分；开头的点在执行时自动补 -->
         <a-input
           v-model:value="expr"
           class="filter-input"
           allow-clear
-          placeholder=".filter(x => x.age > 18).map(x => x.name)"
+          :placeholder="mode === 'js' ? 'filter(x => x.age > 18).map(x => x.name)' : 'store.book[*].author'"
         >
-          <template #addonBefore>this</template>
+          <template #addonBefore>{{ mode === 'js' ? 'this' : '$' }}</template>
         </a-input>
       </div>
       <div class="fn-buttons mt-2">
         <a-button
-          v-for="s in FN_SNIPPETS"
+          v-for="s in (mode === 'js' ? FN_SNIPPETS : JP_SNIPPETS)"
           :key="s.label"
           size="small"
           class="fn-btn"
@@ -83,6 +89,7 @@ import JsonView from '@/components/json-view/index.vue'
 import { computed, onMounted, onBeforeUnmount, reactive, ref, watch, nextTick } from 'vue'
 import * as monaco from 'monaco-editor'
 import { jsonrepair } from 'jsonrepair'
+import { JSONPath } from 'jsonpath-plus'
 import { message } from 'ant-design-vue'
 import { copy } from '@/util/util'
 import { useThemeStore } from '@/stores/theme'
@@ -105,6 +112,8 @@ let formatting = false
 
 // 编辑器实时文本（驱动右侧响应式）
 const rawText = ref('')
+// 查询模式：js（JS 表达式）/ jsonpath
+const mode = ref('js')
 // 过滤表达式
 const expr = ref('')
 
@@ -125,6 +134,17 @@ const FN_SNIPPETS = [
   { label: '.sort', tpl: `.sort((a, b) => ${CARET})` },
   { label: '.slice', tpl: `.slice(${CARET})` },
   { label: '.flatMap', tpl: `.flatMap(e => e.${CARET})` }
+]
+
+// JSONPath 常用片段
+const JP_SNIPPETS = [
+  { label: '.prop', tpl: `.${CARET}` },
+  { label: '[*]', tpl: `[*]${CARET}` },
+  { label: '..', tpl: `..${CARET}` },
+  { label: '[?()]', tpl: `[?(@.${CARET})]` },
+  { label: '[0]', tpl: `[${CARET}]` },
+  { label: '[0,1]', tpl: `[${CARET},]` },
+  { label: '[start:end]', tpl: `[${CARET}:]` }
 ]
 
 const getInputEl = () => filterBarRef.value && filterBarRef.value.querySelector('input')
@@ -168,15 +188,30 @@ const parseState = computed(() => {
   return { empty: false, error: '解析失败', value: undefined }
 })
 
+// 把用户输入与固定前缀拼接：输入以 [ 或 . 开头时直连，否则补一个点
+// 例：filter(...) → this.filter(...)；[0] → this[0]；..author → $..author
+const joinExpr = (input) => {
+  const sep = /^[[.]/.test(input) ? '' : '.'
+  return sep + input
+}
+
 // 过滤表达式执行状态
 const filterState = computed(() => {
   const e = expr.value.trim()
   if (!e) return { active: false, error: null, value: undefined }
   if (parseState.value.empty) return { active: true, error: '请先输入 JSON', value: undefined }
   if (parseState.value.error) return { active: true, error: null, value: undefined } // JSON 错误优先在 errorMsg 中体现
+  if (mode.value === 'jsonpath') {
+    try {
+      const value = JSONPath({ path: '$' + joinExpr(e), json: parseState.value.value })
+      return { active: true, error: null, value }
+    } catch (err) {
+      return { active: true, error: err.message, value: undefined }
+    }
+  }
   try {
-    // this = 解析后的 JSON，表达式拼接在 this 之后
-    const fn = new Function('return this' + e)
+    // this = 解析后的 JSON，输入拼接在 this 之后
+    const fn = new Function('return this' + joinExpr(e))
     return { active: true, error: null, value: fn.call(parseState.value.value) }
   } catch (err) {
     return { active: true, error: err.message, value: undefined }
@@ -357,6 +392,11 @@ watch(
   () => themeStore.isDark,
   (d) => monaco.editor.setTheme(d ? 'vs-dark' : 'vs')
 )
+
+// 切换查询模式时清空表达式（JS / JSONPath 语法不兼容，残留内容会立即报错）
+watch(mode, () => {
+  expr.value = ''
+})
 
 /* ---------------- 工具按钮（作用于编辑器内容） ---------------- */
 

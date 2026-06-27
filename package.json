@@ -19,6 +19,7 @@
     "gif.js": "^0.2.0",
     "highlight.js": "^11.11.1",
     "js-base64": "^3.7.5",
+    "jsonpath-plus": "^10.4.0",
     "jsonrepair": "^3.14.1",
     "md-editor-v3": "^4.10.0",
     "moment": "^2.30.1",

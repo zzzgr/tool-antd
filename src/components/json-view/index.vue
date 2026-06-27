@@ -77,7 +77,15 @@
       </span>
       <div class="content-wrap">
         <p :class="['first-line', length > 0 ? 'pointer' : '']" @click="toggleClose">
-          <span v-if="jsonKey" class="json-key">"{{ jsonKey }}": </span>
+          <span v-if="jsonKey" class="json-key"
+            >"<span
+              class="copy-hit"
+              @click.stop
+              v-triple-click="{ handler: oncopy, args: [jsonKey] }"
+              v-long-press-copy="{ handler: oncopy, args: [jsonKey] }"
+              >{{ jsonKey }}</span
+            >":
+          </span>
           <span v-if="length"
             >{{ prefix }}{{ innerclosed ? '...' + subfix : '' }}
             <span class="json-note">{{ innerclosed ? length + ' items' : '' }}</span>
