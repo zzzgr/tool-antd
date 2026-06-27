@@ -70,9 +70,9 @@ interface Match {
   groups: (string | undefined)[]
 }
 
-const pattern = ref<string>('\\d+')
+const pattern = ref<string>('')
 const flags = ref<string>('g')
-const text = ref<string>('订单 123 和 456，电话 13800001111')
+const text = ref<string>('')
 const autoRun = ref<boolean>(true)
 const error = ref<string>('')
 const matches = ref<Match[]>([])
