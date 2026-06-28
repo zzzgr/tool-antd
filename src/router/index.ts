@@ -138,15 +138,6 @@ const router = createRouter({
       }
     },
 
-    {
-      path: '/jwt',
-      name: 'jwt',
-      component: () => import('@/views/jwt/index.vue'),
-      meta: {
-        title: 'JWT 解析'
-      }
-    },
-
     { path: '/:pathMatch(.*)', redirect: '/' }
   ]
 })

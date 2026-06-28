@@ -1,23 +1,28 @@
 <template>
   <div class="home-header">
     <h1 class="home-title">工具箱</h1>
+    <a-input v-model:value="searchKey" class="home-search" placeholder="搜索工具…" allow-clear>
+      <template #prefix>
+        <SearchOutlined />
+      </template>
+    </a-input>
   </div>
   <a-row :gutter="[16, 16]" align="stretch">
-    <a-col v-for="(t, index) in allTool" :key="t.title" :xs="24" :md="8" :lg="6">
+    <a-col v-for="t in filteredTool" :key="t.path" :xs="24" :md="8" :lg="6">
       <router-link class="tool-link" :to="t.path">
         <div
           class="tool-card"
-          :class="{ 'is-hovered': isHovered[index] }"
+          :class="{ 'is-hovered': hoveredPath === t.path }"
           :style="{ '--tool-accent': t.iconColor }"
-          @mouseenter="cardOnMouseEnter(index)"
-          @mouseleave="cardOnMouseLeave(index)"
+          @mouseenter="hoveredPath = t.path"
+          @mouseleave="hoveredPath = null"
         >
           <div class="tool-card-content">
             <div class="tool-info">
               <div class="tool-title">{{ t.title }}</div>
               <div class="tool-desc">{{ t.desc }}</div>
             </div>
-            <div class="tool-icon-wrapper" :class="{ 'is-hovered': isHovered[index] }">
+            <div class="tool-icon-wrapper" :class="{ 'is-hovered': hoveredPath === t.path }">
               <ToolIcon :name="t.icon" size="32px" :color="t.iconColor" />
             </div>
           </div>
@@ -25,10 +30,12 @@
       </router-link>
     </a-col>
   </a-row>
+  <div v-if="!filteredTool.length" class="empty-tip">没有匹配的工具</div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
+import { SearchOutlined } from '@ant-design/icons-vue'
 import ToolIcon from '@/components/tool-icon/index.vue'
 
 const allTool = [
@@ -48,10 +55,10 @@ const allTool = [
   },
   {
     path: '/codec',
-    title: '编解码',
+    title: '编码 / 安全',
     icon: 'codec',
     iconColor: '#ef4444',
-    desc: 'URL、base64、unicode'
+    desc: 'URL、Base64、Unicode、Hash、JWT'
   },
   {
     path: '/qr',
@@ -115,32 +122,41 @@ const allTool = [
     icon: 'imgbase64',
     iconColor: '#f97316',
     desc: '图片与 Base64 互转'
-  },
-  {
-    path: '/jwt',
-    title: 'JWT 解析',
-    icon: 'jwt',
-    iconColor: '#a855f7',
-    desc: '解析 JWT，查看 Header/Payload 与时间'
   }
 ]
 
-const isHovered = ref(Array(allTool.length).fill(false))
+const searchKey = ref('')
 
-const cardOnMouseEnter = (index: number) => {
-  isHovered.value[index] = true
-}
+const filteredTool = computed(() => {
+  const k = searchKey.value.trim().toLowerCase()
+  if (!k) return allTool
+  return allTool.filter(
+    (t) => t.title.toLowerCase().includes(k) || t.desc.toLowerCase().includes(k)
+  )
+})
 
-const cardOnMouseLeave = (index: number) => {
-  isHovered.value[index] = false
-}
+const hoveredPath = ref<string | null>(null)
 </script>
 
 <style scoped>
 .home-header {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
   padding: 1.75rem 0.5rem 1.5rem;
+}
+
+.home-search {
+  width: 100%;
+  max-width: 420px;
+}
+
+.empty-tip {
+  text-align: center;
+  color: var(--app-muted);
+  padding: 2rem 0;
+  font-size: 0.95rem;
 }
 
 .home-title {

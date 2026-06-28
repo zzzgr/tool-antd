@@ -66,6 +66,17 @@
         </a-col>
       </a-row>
 
+      <!-- 标准声明含义 -->
+      <div v-if="standardClaims.length" class="claims-block">
+        <div class="io-label">标准声明含义</div>
+        <div class="claims">
+          <span v-for="c in standardClaims" :key="c.key" class="claim-item">
+            <span class="claim-key">{{ c.key }}</span>
+            <span class="claim-label">{{ c.label }}</span>
+          </span>
+        </div>
+      </div>
+
       <!-- 时间字段解读 -->
       <div v-if="timeClaims.length" class="time-block">
         <div class="io-label">时间字段</div>
@@ -84,6 +95,22 @@
         <div class="io-label">SIGNATURE</div>
         <div class="sig-value">{{ parsed.signature || '(无签名)' }}</div>
       </div>
+
+      <!-- 签名验证 -->
+      <div class="verify-block">
+        <div class="io-label">签名验证（HS256/384/512）</div>
+        <div class="verify-row">
+          <a-input-password
+            v-model:value="secret"
+            class="secret-input"
+            placeholder="输入 secret 验证签名（仅本地计算，不上传）"
+            allow-clear
+          />
+          <a-tag v-if="verifyResult.text" :color="verifyColor" class="verify-tag"
+            >{{ verifyIcon }} {{ verifyResult.text }}</a-tag
+          >
+        </div>
+      </div>
     </template>
 
     <div v-else class="placeholder">在上方粘贴 JWT 后，自动拆解 Header / Payload / Signature</div>
@@ -92,7 +119,7 @@
 
 <script setup lang="ts">
 import JsonView from '@/components/json-view/index.vue'
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { copy } from '@/util/util'
 import { useStorageRef } from '@/util/util'
 import { useThemeStore } from '@/stores/theme'
@@ -152,6 +179,9 @@ const expStatus = computed(() => {
   if (exp < now) {
     return { color: 'red', text: '已过期' }
   }
+  if (exp - now < 300) {
+    return { color: 'orange', text: '即将过期' }
+  }
   return { color: 'green', text: '有效' }
 })
 
@@ -190,6 +220,118 @@ const jsonViewTheme = computed(() => (themeStore.isDark ? 'vs-code' : ''))
 const jsonIconColor = computed(() =>
   themeStore.isDark ? ['#c6c6c6', '#c6c6c6'] : ['#409EFF', '#000']
 )
+
+// 标准声明含义：仅列出 payload 中实际出现的
+const STANDARD_CLAIMS: Record<string, string> = {
+  iss: '签发者',
+  sub: '主题',
+  aud: '受众',
+  exp: '过期时间',
+  nbf: '生效时间',
+  iat: '签发时间',
+  jti: '编号'
+}
+
+const standardClaims = computed(() => {
+  const p = parsed.value?.payload
+  if (!p) return []
+  return Object.keys(STANDARD_CLAIMS)
+    .filter((k) => k in p)
+    .map((k) => ({ key: k, label: STANDARD_CLAIMS[k] }))
+})
+
+// base64url 编码（用于本地 HMAC 验签比对）
+const base64UrlEncode = (buf: ArrayBuffer): string => {
+  const bytes = new Uint8Array(buf)
+  let bin = ''
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i])
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
+const ALG_HASH: Record<string, string> = {
+  HS256: 'SHA-256',
+  HS384: 'SHA-384',
+  HS512: 'SHA-512'
+}
+
+const secret = ref<string>('')
+const verifyResult = ref<{ status: 'ok' | 'fail' | 'unsupported' | ''; text: string }>({
+  status: '',
+  text: ''
+})
+
+// 异步序号：仅最新一次验签结果生效
+let verifySeq = 0
+
+const verify = async () => {
+  const my = ++verifySeq
+  const p = parsed.value
+  if (!p || !secret.value) {
+    verifyResult.value = { status: '', text: '' }
+    return
+  }
+  const alg = String(p.header?.alg || '')
+  const hashName = ALG_HASH[alg]
+  if (!hashName) {
+    verifyResult.value = {
+      status: 'unsupported',
+      text: `暂仅支持 HS256/384/512，当前为 ${alg || '未知'}`
+    }
+    return
+  }
+  const segs = token.value.trim().split('.')
+  if (segs.length < 3 || !segs[2]) {
+    verifyResult.value = { status: 'fail', text: '缺少签名段' }
+    return
+  }
+  try {
+    const enc = new TextEncoder()
+    const key = await crypto.subtle.importKey(
+      'raw',
+      enc.encode(secret.value),
+      { name: 'HMAC', hash: hashName },
+      false,
+      ['sign']
+    )
+    const sig = await crypto.subtle.sign('HMAC', key, enc.encode(`${segs[0]}.${segs[1]}`))
+    if (my !== verifySeq) return
+    verifyResult.value =
+      base64UrlEncode(sig) === segs[2]
+        ? { status: 'ok', text: '签名有效' }
+        : { status: 'fail', text: '签名无效' }
+  } catch (e: any) {
+    if (my !== verifySeq) return
+    verifyResult.value = { status: 'fail', text: '验签出错：' + (e?.message || '') }
+  }
+}
+
+watch([secret, token], verify)
+
+const verifyColor = computed(() => {
+  switch (verifyResult.value.status) {
+    case 'ok':
+      return 'green'
+    case 'fail':
+      return 'red'
+    case 'unsupported':
+      return 'orange'
+    default:
+      return 'default'
+  }
+})
+
+const verifyIcon = computed(() => {
+  switch (verifyResult.value.status) {
+    case 'ok':
+      return '✅'
+    case 'fail':
+      return '❌'
+    case 'unsupported':
+      return '⚠️'
+    default:
+      return ''
+  }
+})
 </script>
 
 <style scoped>
@@ -353,5 +495,57 @@ const jsonIconColor = computed(() =>
   font-family: 'SFMono-Regular', Consolas, Menlo, monospace;
   font-size: 13px;
   word-break: break-all;
+}
+
+.claims-block {
+  flex: 0 0 auto;
+}
+
+.claims {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.claim-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border: 1px solid var(--app-card-border);
+  border-radius: 4px;
+  background: var(--app-card-bg);
+  font-size: 12px;
+}
+
+.claim-key {
+  font-family: 'SFMono-Regular', Consolas, Menlo, monospace;
+  font-weight: 600;
+  color: #3b82f6;
+}
+
+.claim-label {
+  color: var(--app-muted);
+}
+
+.verify-block {
+  flex: 0 0 auto;
+}
+
+.verify-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.secret-input {
+  flex: 1 1 260px;
+  max-width: 420px;
+  font-family: 'SFMono-Regular', Consolas, Menlo, monospace;
+}
+
+.verify-tag {
+  margin: 0;
 }
 </style>

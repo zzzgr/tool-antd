@@ -9,6 +9,12 @@
     <a-tab-pane key="unicode" tab="Unicode">
       <Unicode />
     </a-tab-pane>
+    <a-tab-pane key="hash" tab="Hash">
+      <Hash />
+    </a-tab-pane>
+    <a-tab-pane key="jwt" tab="JWT">
+      <Jwt />
+    </a-tab-pane>
   </a-tabs>
 </template>
 
@@ -16,6 +22,8 @@
 import URL from './url/index.vue'
 import Base64 from './base64/index.vue'
 import Unicode from './unicode/index.vue'
+import Hash from '@/views/hash/index.vue'
+import Jwt from '@/views/jwt/index.vue'
 import { useStorageRef } from '@/util/util'
 
 const activeKey = useStorageRef('codec:active-tab', 'url')

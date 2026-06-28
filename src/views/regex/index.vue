@@ -16,6 +16,17 @@
       <a-checkbox v-model:checked="autoRun">实时</a-checkbox>
     </div>
 
+    <div class="presets">
+      <span class="opt-label">常用</span>
+      <a-tag
+        v-for="p in PRESETS"
+        :key="p.label"
+        class="preset-tag"
+        @click="applyPreset(p.pattern)"
+        >{{ p.label }}</a-tag
+      >
+    </div>
+
     <div v-if="error" class="error">正则错误：{{ error }}</div>
     <div v-else class="summary">
       <a-tag>命中 {{ matches.length }} 处</a-tag>
@@ -58,11 +69,36 @@
         </div>
       </div>
     </div>
+
+    <div class="io-block replace-block">
+      <div class="replace-head">
+        <span class="io-label">替换</span>
+        <a-input
+          v-model:value="replacement"
+          size="small"
+          class="replace-input"
+          placeholder="替换为（支持 $1 引用分组）"
+        />
+        <a-button type="link" size="small" :disabled="!replaced" @click="copy(replaced)"
+          >复制结果</a-button
+        >
+      </div>
+      <div class="io-output" :class="{ 'is-empty': !replacedSegments }">
+        <template v-if="replacedSegments">
+          <span v-for="(seg, i) in replacedSegments" :key="i">
+            <mark v-if="seg.replaced" class="rep-hit">{{ seg.text }}</mark>
+            <template v-else>{{ seg.text }}</template>
+          </span>
+        </template>
+        <span v-else>替换结果将显示在这里</span>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { copy } from '@/util/util'
 
 interface Match {
   index: number
@@ -137,6 +173,81 @@ const groups = computed(() => {
 watch([pattern, flags, text], () => {
   if (autoRun.value) run()
 }, { immediate: true })
+
+const replacement = ref<string>('')
+
+// 常用正则库：点击填入并立即匹配
+const PRESETS: { label: string; pattern: string }[] = [
+  { label: '邮箱', pattern: '[\\w.+-]+@[\\w-]+\\.[\\w.-]+' },
+  { label: '手机号', pattern: '1[3-9]\\d{9}' },
+  { label: 'IPv4', pattern: '\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b' },
+  { label: 'URL', pattern: 'https?://[^\\s]+' },
+  { label: '身份证', pattern: '\\d{17}[\\dXx]' },
+  { label: '日期', pattern: '\\d{4}-\\d{2}-\\d{2}' },
+  { label: '整数', pattern: '-?\\d+' },
+  { label: '中文', pattern: '[\\u4e00-\\u9fa5]+' },
+  { label: 'HEX颜色', pattern: '#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{3})\\b' }
+]
+
+const applyPreset = (p: string) => {
+  pattern.value = p
+  if (!flags.value.includes('g')) flags.value += 'g'
+  run()
+}
+
+// 替换结果：用当前正则替换待测文本，支持 $1 反向引用
+const replaced = computed(() => {
+  if (!pattern.value || !text.value) return ''
+  try {
+    const f = flags.value.replace(/[^gimsuy]/g, '')
+    const re = new RegExp(pattern.value, f)
+    return text.value.replace(re, replacement.value)
+  } catch {
+    return ''
+  }
+})
+
+// 替换结果分段：把"被替换进去的新片段"标出来，便于看清改了哪里
+const replacedSegments = computed<{ text: string; replaced: boolean }[] | null>(() => {
+  if (!pattern.value || !text.value) return null
+  let re: RegExp
+  try {
+    const f = flags.value.replace(/[^gimsuy]/g, '')
+    re = new RegExp(pattern.value, f)
+  } catch {
+    return null
+  }
+  const src = text.value
+  const single = new RegExp(re.source, re.flags.replace('g', ''))
+  const segs: { text: string; replaced: boolean }[] = []
+  let last = 0
+  const pushPlain = (from: number, to: number) => {
+    if (to > from) segs.push({ text: src.slice(from, to), replaced: false })
+  }
+  const pushPiece = (matched: string) => {
+    const piece = matched.replace(single, replacement.value)
+    if (piece !== '') segs.push({ text: piece, replaced: true })
+  }
+  if (re.global) {
+    const reCopy = new RegExp(re.source, re.flags)
+    let m: RegExpExecArray | null
+    while ((m = reCopy.exec(src)) !== null) {
+      pushPlain(last, m.index)
+      pushPiece(m[0])
+      last = m.index + m[0].length
+      if (m[0] === '') reCopy.lastIndex++
+    }
+  } else {
+    const m = re.exec(src)
+    if (m) {
+      pushPlain(0, m.index)
+      pushPiece(m[0])
+      last = m.index + m[0].length
+    }
+  }
+  pushPlain(last, src.length)
+  return segs
+})
 </script>
 
 <style scoped>
@@ -242,6 +353,13 @@ watch([pattern, flags, text], () => {
   padding: 0 1px;
 }
 
+.rep-hit {
+  background: color-mix(in srgb, #22c55e 34%, transparent);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
 .match-row {
   display: flex;
   flex-wrap: wrap;
@@ -286,5 +404,44 @@ watch([pattern, flags, text], () => {
 
 .g-val {
   color: var(--app-text);
+}
+
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.preset-tag {
+  margin: 0;
+  cursor: pointer;
+  user-select: none;
+}
+
+.replace-block {
+  flex: 0 0 auto;
+}
+
+.replace-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.replace-head .io-label {
+  margin-bottom: 0;
+}
+
+.replace-input {
+  flex: 1;
+  font-family: 'SFMono-Regular', Consolas, Menlo, monospace;
+}
+
+.replace-block .io-output {
+  flex: none;
+  min-height: 60px;
+  max-height: 140px;
 }
 </style>
