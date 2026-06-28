@@ -35,7 +35,7 @@
         <a-button-group size="small">
           <a-button @click="sortAsc">升序</a-button>
           <a-button @click="sortDesc">降序</a-button>
-          <a-button @click="showDuplicatePreview">标记重复</a-button>
+          <a-button @click="showDuplicatePreview">查看重复</a-button>
           <a-button @click="dedupe">去重</a-button>
           <a-button @click="removeEmptyLines">去空行</a-button>
           <a-button @click="trimLines">去首尾空格</a-button>
@@ -55,49 +55,52 @@
     </div>
 
     <div class="io-block">
-      <div class="editor-wrap">
-        <div ref="gutterEl" class="gutter">
-          <span v-for="n in lineCount" :key="n">{{ n }}</span>
-        </div>
-        <a-textarea
-          ref="textareaEl"
-          v-model:value="text"
-          class="io-input"
-          :wrap="false"
-          placeholder="在此粘贴 / 输入文本，使用上方按钮处理（操作可撤销）"
-          @scroll="onTextareaScroll"
-        />
-      </div>
+      <v-ace-editor
+        v-model:value="text"
+        lang="text"
+        :theme="aceTheme"
+        :options="aceOptions"
+        class="ace"
+        @init="onAceInit"
+      />
     </div>
 
     <div class="statusbar">
       <span>{{ lineCount }} 行 · {{ charCount }} 字符</span>
-      <span class="slot-info">暂存：左 {{ bridge.left.length }} 字 / 右 {{ bridge.right.length }} 字</span>
+      <span class="slot-info"
+        >暂存：左 {{ bridge.left.length }} 字 / 右 {{ bridge.right.length }} 字</span
+      >
     </div>
 
-    <!-- 标记重复预览：按行高亮重复项，所见即所得（判定规则与 dedupe 同源） -->
-    <a-modal v-model:open="dupModalOpen" title="标记重复" :width="720" class="dup-modal">
+    <!-- 查看重复：按"重复的值"聚合，点条目用 Ace 高亮全部出现行并跳转；行号可展开 -->
+    <a-modal v-model:open="dupModalOpen" title="重复项" :width="720" class="dup-modal">
       <div class="dup-summary">
-        <a-tag>共 {{ dupLines.length }} 行</a-tag>
-        <a-tag color="warning">重复 {{ dupDuplicateCount }} 行</a-tag>
-        <a-tag color="error">涉及 {{ dupValueCount }} 个值</a-tag>
-        <span v-if="dupDuplicateCount === 0" class="dup-empty">未发现重复行</span>
+        <a-tag>共 {{ lineCount }} 行</a-tag>
+        <a-tag color="warning">{{ dupGroups.length }} 组重复</a-tag>
+        <a-tag color="error">重复合计 {{ dupTotalLines }} 行</a-tag>
+        <span v-if="dupGroups.length === 0" class="dup-empty">未发现重复内容</span>
       </div>
-      <div class="dup-list">
-        <div
-          v-for="item in dupLines"
-          :key="item.index"
-          class="dup-line"
-          :class="{ 'is-dup': item.dup }"
-        >
-          <span class="dup-no">{{ item.index + 1 }}</span>
-          <span class="dup-text">{{ item.text }}</span>
-          <span v-if="item.dup" class="dup-count">×{{ item.occurrence }}</span>
+      <div v-if="dupGroups.length" class="dup-list">
+        <div v-for="g in dupGroups" :key="g.value" class="dup-group">
+          <div class="dup-head" @click="locateDup(g)">
+            <span class="dup-count">×{{ g.count }}</span>
+            <span class="dup-value" :title="g.value">{{ g.value }}</span>
+            <span class="dup-act">定位</span>
+            <span class="dup-toggle" @click.stop="toggleDup(g.value)">{{
+              expandedDup.has(g.value) ? '收起' : '行号'
+            }}</span>
+          </div>
+          <div v-if="expandedDup.has(g.value)" class="dup-lines">
+            行
+            <span v-for="(n, i) in g.lines" :key="n"
+              >{{ n }}<template v-if="i < g.lines.length - 1"> · </template></span
+            >
+          </div>
         </div>
       </div>
       <template #footer>
-        <a-button @click="dupModalOpen = false">取消</a-button>
-        <a-button type="primary" :disabled="dupDuplicateCount === 0" @click="confirmDedupe">
+        <a-button @click="dupModalOpen = false">关闭</a-button>
+        <a-button type="primary" :disabled="dupGroups.length === 0" @click="confirmDedupe">
           去重
         </a-button>
       </template>
@@ -106,68 +109,124 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { VAceEditor } from '@/views/ace/ace.config'
+import * as aceBuilds from 'ace-builds'
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { useStorageRef } from '@/util/util'
 import { useDiffBridgeStore } from '@/stores/diffBridge'
+import { useThemeStore } from '@/stores/theme'
 
 const router = useRouter()
 const bridge = useDiffBridgeStore()
+const themeStore = useThemeStore()
 
-// 输入框内容，持久化（刷新保留）
+// 输入内容，持久化（刷新保留）
 const text = useStorageRef('textproc:input', '')
 
 // 自定义分隔符 / 查找替换的输入
-const delimiter = ref<string>(',')
+const delimiter = useStorageRef('textproc:delimiter', ',')
 const findText = ref<string>('')
 const replaceText = ref<string>('')
-const useRegex = ref<boolean>(false)
+// 「正则」勾选持久化（useStorageRef 仅支持字符串，用 computed 暴露为布尔）
+const useRegexRaw = useStorageRef('textproc:useRegex', '0')
+const useRegex = computed({
+  get: () => useRegexRaw.value === '1',
+  set: (v) => (useRegexRaw.value = v ? '1' : '0')
+})
 
-// 撤销 / 重做双栈：按钮操作与手动输入统一进栈，支持 Ctrl+Z / Ctrl+Shift+Z(Ctrl+Y)
-const undoStack = ref<string[]>([])
-const redoStack = ref<string[]>([])
-const MAX_HISTORY = 100
-
-// 区分文本变化来源：撤销/重做引起的变化不再入栈；按钮变化已在 mutate 里记录
-let restoring = false
-let buttonMutation = false
-// 手动输入合并：记录一段连续输入的起点 baseline，停顿后固化为一个撤销点
-let manualBaseline: string | null = null
-let manualTimer: ReturnType<typeof setTimeout> | null = null
-
-const pushUndo = (val: string) => {
-  undoStack.value.push(val)
-  if (undoStack.value.length > MAX_HISTORY) undoStack.value.shift()
-  redoStack.value = []
+// —— Ace 编辑器 ——
+// 撤销 / 重做交给 Ace 内置（Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y）
+const aceTheme = computed(() => (themeStore.isDark ? 'tomorrow_night' : 'chrome'))
+const aceOptions = {
+  useWorker: false,
+  showPrintMargin: false,
+  highlightActiveLine: true,
+  fontSize: 13,
+  wrap: false,
+  tabSize: 2
+}
+const aceLib = aceBuilds as any
+const AceRange = aceLib.Range ?? aceLib.require('ace/range').Range
+let aceEditor: any = null
+let dupMarkerIds: number[] = []
+let findMarkerIds: number[] = []
+const onAceInit = (editor: any) => {
+  aceEditor = editor
+}
+const clearDupMarkers = () => {
+  if (!aceEditor) return
+  const session = aceEditor.getSession()
+  dupMarkerIds.forEach((id) => session.removeMarker(id))
+  dupMarkerIds = []
 }
 
-// 固化当前未提交的手动输入段
-const flushManual = () => {
-  if (manualTimer) {
-    clearTimeout(manualTimer)
-    manualTimer = null
+// —— 查找高亮：随「查找替换」的查找框实时高亮编辑器里命中的文本 ——
+// 未勾「正则」按字面查找，勾选后按正则查找；上限保护避免超大量 marker 卡顿
+const FIND_LIMIT = 2000
+const clearFindMarkers = () => {
+  if (!aceEditor) return
+  const session = aceEditor.getSession()
+  findMarkerIds.forEach((id) => session.removeMarker(id))
+  findMarkerIds = []
+}
+const highlightFind = () => {
+  if (!aceEditor) return
+  clearFindMarkers()
+  const needle = findText.value
+  if (!needle) return
+  const src = aceEditor.getValue()
+  const ranges: [number, number][] = []
+  if (useRegex.value) {
+    let re: RegExp
+    try {
+      re = new RegExp(needle, 'g')
+    } catch {
+      return // 正则非法时不高亮
+    }
+    let m: RegExpExecArray | null
+    while ((m = re.exec(src)) !== null) {
+      if (m[0] !== '') ranges.push([m.index, m.index + m[0].length])
+      if (m[0] === '') re.lastIndex++
+      if (ranges.length >= FIND_LIMIT) break
+    }
+  } else {
+    let pos = 0
+    for (;;) {
+      const idx = src.indexOf(needle, pos)
+      if (idx === -1) break
+      ranges.push([idx, idx + needle.length])
+      pos = idx + needle.length
+      if (ranges.length >= FIND_LIMIT) break
+    }
   }
-  if (manualBaseline !== null && manualBaseline !== text.value) {
-    pushUndo(manualBaseline)
+  const session = aceEditor.getSession()
+  const doc = session.getDocument()
+  for (const [s, e] of ranges) {
+    const sp = doc.indexToPosition(s, 0)
+    const ep = doc.indexToPosition(e, 0)
+    findMarkerIds.push(
+      session.addMarker(new AceRange(sp.row, sp.column, ep.row, ep.column), 'find-hl', 'text')
+    )
   }
-  manualBaseline = null
 }
 
-// 程序化修改文本（按钮操作 / 清空）：先固化手动段，再记录撤销点
-const mutate = (next: string) => {
-  if (next === text.value) return
-  flushManual()
-  pushUndo(text.value)
-  buttonMutation = true
-  text.value = next
-}
+// 查找框 / 正则开关 / 文本变化时，防抖重算查找高亮（nextTick 等 Ace 内容同步后再算位置）
+let findTimer: ReturnType<typeof setTimeout> | null = null
+watch([findText, useRegex, text], () => {
+  if (findTimer) clearTimeout(findTimer)
+  findTimer = setTimeout(() => nextTick(highlightFind), 150)
+})
+onUnmounted(() => {
+  if (findTimer) clearTimeout(findTimer)
+})
 
 // 统一换行符为 \n，避免 \r\n 干扰按行处理
 const normalize = (s: string) => s.replace(/\r\n?/g, '\n')
 const toLines = (s: string) => s.split('\n')
 
-// 执行一次变换：读当前文本 → fn 处理 → 写回（mutate 负责记录撤销点）
+// 执行一次变换：读当前文本 → fn 处理 → 写回（撤销/重做交给 Ace）
 const apply = (fn: (s: string) => string) => {
   let next: string
   try {
@@ -176,7 +235,7 @@ const apply = (fn: (s: string) => string) => {
     message.error(e?.message || '处理失败')
     return
   }
-  mutate(next)
+  if (next !== text.value) text.value = next
 }
 
 // —— 分隔符转换 ——
@@ -257,81 +316,63 @@ const trimLines = () => apply((s) => toLines(s).map((x) => x.trim()).join('\n'))
 const removeInlineSpaces = () =>
   apply((s) => toLines(s).map((x) => x.replace(/[ \t]+/g, '')).join('\n'))
 
-// —— 标记重复预览 ——
-// 判定规则与 dedupe 同源：以原始行文本为 key（不 trim、大小写敏感），
-// 首次出现保留，第 2 次及以后标记为重复，保证"高亮的行 = 去重会删的行"
+// —— 查看重复 ——
+// 按"重复的值"聚合：排除纯空白行，仅保留出现 ≥2 次的值，按次数降序。
+interface DupGroup {
+  value: string
+  count: number
+  lines: number[]
+}
 const dupModalOpen = ref(false)
-const dupAnalysis = computed(() => {
+const expandedDup = ref<Set<string>>(new Set())
+const dupGroups = computed<DupGroup[]>(() => {
   const normalized = normalize(text.value)
   const lines = normalized === '' ? [] : toLines(normalized)
-  const seen = new Map<string, number>()
-  const result = lines.map((text, index) => {
-    const occurrence = (seen.get(text) ?? 0) + 1
-    seen.set(text, occurrence)
-    return { index, text, occurrence, dup: occurrence > 1 }
+  const map = new Map<string, number[]>()
+  lines.forEach((line, i) => {
+    if (line.trim() === '') return
+    const arr = map.get(line)
+    if (arr) arr.push(i + 1)
+    else map.set(line, [i + 1])
   })
-  const dupItems = result.filter((x) => x.dup)
-  return {
-    lines: result,
-    duplicateCount: dupItems.length,
-    valueCount: dupItems.length ? new Set(dupItems.map((x) => x.text)).size : 0,
-  }
+  const groups: DupGroup[] = []
+  map.forEach((lineNos, value) => {
+    if (lineNos.length > 1) groups.push({ value, count: lineNos.length, lines: lineNos })
+  })
+  groups.sort((a, b) => b.count - a.count || a.lines[0] - b.lines[0])
+  return groups
 })
-const dupLines = computed(() => dupAnalysis.value.lines)
-const dupDuplicateCount = computed(() => dupAnalysis.value.duplicateCount)
-const dupValueCount = computed(() => dupAnalysis.value.valueCount)
+const dupTotalLines = computed(() => dupGroups.value.reduce((sum, g) => sum + g.count, 0))
+const toggleDup = (value: string) => {
+  const s = new Set(expandedDup.value)
+  if (s.has(value)) s.delete(value)
+  else s.add(value)
+  expandedDup.value = s
+}
 const showDuplicatePreview = () => {
+  expandedDup.value = new Set()
   dupModalOpen.value = true
 }
 const confirmDedupe = () => {
   dupModalOpen.value = false
   dedupe()
 }
-
-// —— 操作 ——
-const undo = () => {
-  flushManual()
-  if (undoStack.value.length === 0) return
-  restoring = true
-  redoStack.value.push(text.value)
-  text.value = undoStack.value.pop() as string
-  nextTick(() => (restoring = false))
-}
-const redo = () => {
-  if (redoStack.value.length === 0) return
-  restoring = true
-  undoStack.value.push(text.value)
-  text.value = redoStack.value.pop() as string
-  nextTick(() => (restoring = false))
+// 在 Ace 里整行高亮某重复值的全部出现行，并跳到第一处
+const locateDup = (g: DupGroup) => {
+  if (!aceEditor) return
+  clearDupMarkers()
+  const session = aceEditor.getSession()
+  g.lines.forEach((n) => {
+    const id = session.addMarker(new AceRange(n - 1, 0, n - 1, 1), 'dup-hl', 'fullLine')
+    dupMarkerIds.push(id)
+  })
+  dupModalOpen.value = false
+  aceEditor.gotoLine(g.lines[0], 0, true)
+  aceEditor.focus()
 }
 
-// 监听文本变化：手动输入按防抖合并成一个撤销点；按钮/撤销引起的变化不重复记录
-watch(text, (_newVal, oldVal) => {
-  if (restoring) return
-  if (buttonMutation) {
-    buttonMutation = false
-    return
-  }
-  if (manualBaseline === null) manualBaseline = oldVal
-  if (manualTimer) clearTimeout(manualTimer)
-  manualTimer = setTimeout(flushManual, 600)
-})
-
-// Ctrl+Z 撤销 / Ctrl+Shift+Z、Ctrl+Y 重做；查找等单行输入框内放行原生撤销
-const onKeydown = (e: KeyboardEvent) => {
-  if (!e.ctrlKey && !e.metaKey) return
-  const key = e.key.toLowerCase()
-  if (key !== 'z' && key !== 'y') return
-  if ((e.target as HTMLElement)?.tagName === 'INPUT') return
-  e.preventDefault()
-  if (key === 'y' || e.shiftKey) redo()
-  else undo()
-}
-onMounted(() => window.addEventListener('keydown', onKeydown))
-onUnmounted(() => {
-  window.removeEventListener('keydown', onKeydown)
-  if (manualTimer) clearTimeout(manualTimer)
-})
+// 文本被编辑后旧的重复高亮已失效，清除
+watch(text, clearDupMarkers)
 
 // —— 暂存对比 ——
 const saveLeft = () => {
@@ -354,13 +395,6 @@ const goDiff = () => {
 // —— 状态栏 ——
 const charCount = computed(() => text.value.length)
 const lineCount = computed(() => (text.value === '' ? 0 : normalize(text.value).split('\n').length))
-
-// —— 行号同步滚动 ——
-const gutterEl = ref<HTMLElement | null>(null)
-const textareaEl = ref<any>(null)
-const onTextareaScroll = (e: Event) => {
-  if (gutterEl.value) gutterEl.value.scrollTop = (e.target as HTMLElement).scrollTop
-}
 </script>
 
 <style scoped>
@@ -448,42 +482,29 @@ const onTextareaScroll = (e: Event) => {
   min-height: 0;
   display: flex;
   flex-direction: column;
-}
-
-.editor-wrap {
-  flex: 1;
-  min-height: 0;
-  display: flex;
   padding-bottom: 34px; /* 给底部 statusbar 让位 */
 }
 
-.gutter {
-  flex: 0 0 auto;
-  min-height: 0;
-  overflow: hidden;
-  padding: 8px 8px 8px 10px;
-  text-align: right;
-  color: var(--app-muted);
-  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-  font-size: 13px;
-  line-height: 1.6;
-  user-select: none;
-  background: color-mix(in srgb, var(--app-card-bg) 60%, transparent);
-  border-right: 1px solid var(--app-card-border);
-  border-radius: 4px 0 0 4px;
-}
-
-.gutter span {
-  display: block;
-}
-
-.io-input {
+.ace {
   flex: 1;
   min-height: 0;
-  border-radius: 0 4px 4px 0;
-  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-  font-size: 13px;
-  line-height: 1.6;
+  border: 1px solid var(--app-card-border);
+  border-radius: 4px;
+}
+
+/* Ace 内整行高亮重复行（蓝，区别于查找高亮的黄） */
+:deep(.dup-hl) {
+  position: absolute;
+  z-index: 4;
+  background: color-mix(in srgb, #3b82f6 20%, transparent);
+}
+
+/* Ace 内高亮「查找」命中的文本片段 */
+:deep(.find-hl) {
+  position: absolute;
+  z-index: 4;
+  background: color-mix(in srgb, #fde047 55%, transparent);
+  border-radius: 2px;
 }
 
 .statusbar {
@@ -507,7 +528,7 @@ const onTextareaScroll = (e: Event) => {
   margin-left: auto;
 }
 
-/* —— 标记重复弹窗 —— */
+/* —— 查看重复弹窗 —— */
 .dup-summary {
   display: flex;
   flex-wrap: wrap;
@@ -529,32 +550,54 @@ const onTextareaScroll = (e: Event) => {
   font-size: 13px;
   line-height: 1.6;
 }
-.dup-line {
+.dup-group {
+  border-bottom: 1px dashed color-mix(in srgb, var(--app-card-border) 60%, transparent);
+}
+.dup-group:last-child {
+  border-bottom: none;
+}
+.dup-head {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 2px 10px;
+  gap: 10px;
+  padding: 4px 10px;
+  cursor: pointer;
 }
-.dup-line.is-dup {
-  background: color-mix(in srgb, #f59e0b 16%, var(--app-card-bg));
-  border-inline-start: 3px solid #f59e0b;
-}
-.dup-no {
-  flex: 0 0 auto;
-  min-width: 3em;
-  text-align: right;
-  color: var(--app-muted);
-  user-select: none;
-}
-.dup-text {
-  flex: 1 1 auto;
-  white-space: pre-wrap;
-  word-break: break-all;
+.dup-head:hover {
+  background: color-mix(in srgb, var(--app-card-border) 25%, transparent);
 }
 .dup-count {
   flex: 0 0 auto;
+  min-width: 2.5em;
+  text-align: center;
+  padding: 0 6px;
   color: #f59e0b;
+  font-weight: 600;
+  background: color-mix(in srgb, #f59e0b 16%, transparent);
+  border-radius: 10px;
+}
+.dup-value {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dup-act {
+  flex: 0 0 auto;
   font-size: 12px;
-  opacity: 0.85;
+  color: #3b82f6;
+  user-select: none;
+}
+.dup-toggle {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: #3b82f6;
+  user-select: none;
+}
+.dup-lines {
+  padding: 2px 10px 6px 10px;
+  color: var(--app-muted);
+  word-break: break-all;
 }
 </style>
