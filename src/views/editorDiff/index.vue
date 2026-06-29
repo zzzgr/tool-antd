@@ -180,7 +180,6 @@ const MIN_RELEVANCE = 5
 
 
 let diffEditor = ref<any>(null)
-let diffNavigator = ref<any>(null)
 let container = ref<any>(null)
 const config = reactive({
   theme: themeStore.isDark ? 'vs-dark' : 'vs',
@@ -255,10 +254,10 @@ const formatContent = () => {
 }
 
 const previousDiff = () => {
-  toRaw(diffNavigator.value).previous()
+  toRaw(diffEditor.value).goToDiff('previous')
 }
 const nextDiff = () => {
-  toRaw(diffNavigator.value).next()
+  toRaw(diffEditor.value).goToDiff('next')
 }
 const setModel = (originVal, modifiedVal) => {
   // 清空时恢复自动识别
@@ -289,11 +288,6 @@ onMounted(() => {
 
   // 设置model
   setModel('', '')
-
-  // 差一导航
-  diffNavigator.value = monaco.editor.createDiffNavigator(toRaw(diffEditor.value), {
-    alwaysRevealFirst: true
-  })
 
   // 更新差异个数的监听
   toRaw(diffEditor.value).onDidUpdateDiff(() => {

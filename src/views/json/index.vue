@@ -362,7 +362,13 @@ onMounted(() => {
     tabSize: 2,
     scrollBeyondLastLine: false,
     smoothScrolling: true,
-    fixedOverflowWidgets: true
+    fixedOverflowWidgets: true,
+    stickyScroll: {
+      enabled: true,
+      maxLineCount: 4,
+      defaultModel: 'foldingProviderModel',
+      scrollWithEditor: true
+    }
   })
 
   // 粘贴并（同步）格式化完成后，光标回到首行行首
