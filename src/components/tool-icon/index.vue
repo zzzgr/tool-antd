@@ -1,5 +1,9 @@
 <template>
-  <div class="tool-icon" :style="{ width: size, height: size, color: color }" v-html="iconSvg"></div>
+  <div
+    class="tool-icon"
+    :style="{ width: size, height: size, color: color }"
+    v-html="iconSvg"
+  ></div>
 </template>
 
 <script setup lang="ts">
@@ -18,6 +22,8 @@ import textprocIcon from '@/assets/icons/textproc.svg?raw'
 import uuidIcon from '@/assets/icons/uuid.svg?raw'
 import regexIcon from '@/assets/icons/regex.svg?raw'
 import imgbase64Icon from '@/assets/icons/imgbase64.svg?raw'
+import xmlIcon from '@/assets/icons/xml.svg?raw'
+import markdownIcon from '@/assets/icons/markdown.svg?raw'
 
 const props = withDefaults(
   defineProps<{
@@ -45,7 +51,9 @@ const iconMap: Record<string, string> = {
   textproc: textprocIcon,
   uuid: uuidIcon,
   regex: regexIcon,
-  imgbase64: imgbase64Icon
+  imgbase64: imgbase64Icon,
+  xml: xmlIcon,
+  markdown: markdownIcon
 }
 
 const iconSvg = computed(() => {

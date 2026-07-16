@@ -51,7 +51,14 @@ const allTool = [
     title: 'JSON格式化',
     icon: 'json',
     iconColor: '#f59e0b',
-    desc: 'JSON格式化、压缩、转义'
+    desc: 'JSON、XML、YAML 自动转换与格式化'
+  },
+  {
+    path: '/xml',
+    title: 'XML格式化',
+    icon: 'xml',
+    iconColor: '#a855f7',
+    desc: 'XML 格式化、压缩与校验'
   },
   {
     path: '/codec',

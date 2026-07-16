@@ -27,6 +27,14 @@ const router = createRouter({
       }
     },
     {
+      path: '/xml',
+      name: 'xml',
+      component: () => import('@/views/xml/index.vue'),
+      meta: {
+        title: 'XML 格式化'
+      }
+    },
+    {
       path: '/picbed',
       name: 'picbed',
       component: () => import('@/views/picbed/index.vue'),

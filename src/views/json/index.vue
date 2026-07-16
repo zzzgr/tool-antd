@@ -1,13 +1,14 @@
 <template>
   <div class="json-tool p-2">
     <!-- 工具按钮 -->
-    <div class="mb-2">
+    <div class="toolbar mb-2">
       <a-button-group size="small">
         <a-button type="primary" @click="format()">格式化</a-button>
         <a-button type="primary" @click="compress()">压缩</a-button>
         <a-button type="primary" @click="unEscape()">去除转义</a-button>
         <a-button type="primary" @click="escape()">转义</a-button>
       </a-button-group>
+      <a-tag v-if="formatBadge" class="format-badge" color="processing">{{ formatBadge }}</a-tag>
     </div>
 
     <a-row :gutter="16">
@@ -23,12 +24,7 @@
           class="render-area border border-solid rounded-md"
           :style="{ height: editorHeight + 'px' }"
         >
-          <a-button
-            v-if="!errorMsg"
-            type="link"
-            size="small"
-            class="copy-btn"
-            @click="onCopy()"
+          <a-button v-if="!errorMsg" type="link" size="small" class="copy-btn" @click="onCopy()"
             >复制
           </a-button>
 
@@ -64,14 +60,16 @@
           v-model:value="expr"
           class="filter-input"
           allow-clear
-          :placeholder="mode === 'js' ? 'filter(x => x.age > 18).map(x => x.name)' : 'store.book[*].author'"
+          :placeholder="
+            mode === 'js' ? 'filter(x => x.age > 18).map(x => x.name)' : 'store.book[*].author'
+          "
         >
           <template #addonBefore>{{ mode === 'js' ? 'this' : '$' }}</template>
         </a-input>
       </div>
       <div class="fn-buttons mt-2">
         <a-button
-          v-for="s in (mode === 'js' ? FN_SNIPPETS : JP_SNIPPETS)"
+          v-for="s in mode === 'js' ? FN_SNIPPETS : JP_SNIPPETS"
           :key="s.label"
           size="small"
           class="fn-btn"
@@ -88,11 +86,17 @@
 import JsonView from '@/components/json-view/index.vue'
 import { computed, onMounted, onBeforeUnmount, reactive, ref, watch, nextTick } from 'vue'
 import * as monaco from 'monaco-editor'
-import { jsonrepair } from 'jsonrepair'
 import { JSONPath } from 'jsonpath-plus'
 import { message } from 'ant-design-vue'
 import { copy } from '@/util/util'
 import { useThemeStore } from '@/stores/theme'
+import {
+  looksLikeXml,
+  looksLikeYaml,
+  parseJsonLike,
+  parseStructuredData,
+  structuredDataFormatLabel
+} from '@/util/structuredData'
 
 const themeStore = useThemeStore()
 
@@ -109,6 +113,7 @@ const filterAreaRef = ref(null)
 const editorHeight = ref(360)
 let editor = null
 let formatting = false
+const lastConvertedFormat = ref(null)
 
 // 编辑器实时文本（驱动右侧响应式）
 const rawText = ref('')
@@ -168,24 +173,29 @@ const insertSnippet = (tpl) => {
 
 /* ---------------- 状态推导 ---------------- */
 
-// JSON 解析状态
-// 降级链：1) 整段宽松解析（单 JSON，含截断修复）→ 2) 混杂文本提取多个 JSON 块合并成数组 → 3) 报错
+// 自动识别 JSON / XML / YAML。外部格式在粘贴、失焦或点击格式化时写回为 JSON。
 const parseState = computed(() => {
   const t = (rawText.value || '').trim()
-  if (!t) return { empty: true, error: null, value: undefined }
-  // 1) 单 JSON（合法优先，截断则修复）
-  const loose = parseLoose(t)
-  if (loose !== null) return { empty: false, error: null, value: loose }
-  // 2) 混杂文本：提取所有 JSON 块合并成数组
-  const blocks = extractJsonBlocks(t)
-  if (blocks.length > 0) return { empty: false, error: null, value: blocks }
-  // 3) 都失败：保持原报错逻辑
-  try {
-    JSON.parse(t)
-  } catch (e) {
-    return { empty: false, error: e.message, value: undefined }
+  if (!t) return { empty: true, error: null, format: null, value: undefined }
+
+  const result = parseStructuredData(t)
+  if (result.ok) {
+    return { empty: false, error: null, format: result.format, value: result.value }
   }
-  return { empty: false, error: '解析失败', value: undefined }
+  return {
+    empty: false,
+    error: result.error,
+    format: result.format || null,
+    value: undefined
+  }
+})
+
+const formatBadge = computed(() => {
+  if (lastConvertedFormat.value) {
+    return `${structuredDataFormatLabel[lastConvertedFormat.value]} → JSON`
+  }
+  if (parseState.value.empty || parseState.value.error || !parseState.value.format) return ''
+  return `已识别 ${structuredDataFormatLabel[parseState.value.format]}`
 })
 
 // 把用户输入与固定前缀拼接：输入以 [ 或 . 开头时直连，否则补一个点
@@ -199,7 +209,9 @@ const joinExpr = (input) => {
 const filterState = computed(() => {
   const e = expr.value.trim()
   if (!e) return { active: false, error: null, value: undefined }
-  if (parseState.value.empty) return { active: true, error: '请先输入 JSON', value: undefined }
+  if (parseState.value.empty) {
+    return { active: true, error: '请先输入 JSON、XML 或 YAML', value: undefined }
+  }
   if (parseState.value.error) return { active: true, error: null, value: undefined } // JSON 错误优先在 errorMsg 中体现
   if (mode.value === 'jsonpath') {
     try {
@@ -226,7 +238,10 @@ const renderVisible = computed(
 // 错误信息（JSON 错误优先）
 const errorMsg = computed(() => {
   if (!parseState.value.empty && parseState.value.error) {
-    return 'JSON 解析错误：' + parseState.value.error
+    const label = parseState.value.format
+      ? structuredDataFormatLabel[parseState.value.format]
+      : '内容'
+    return `${label}解析错误：${parseState.value.error}`
   }
   if (filterState.value.error) {
     return '表达式错误：' + filterState.value.error
@@ -258,64 +273,6 @@ const jsonIconColor = computed(() =>
 
 /* ---------------- Monaco 编辑器 ---------------- */
 
-// 宽松解析：合法 JSON 直接 parse；不完整 JSON 用 jsonrepair 修复后再 parse；都失败返回 null
-const parseLoose = (text) => {
-  try {
-    return JSON.parse(text)
-  } catch {
-    try {
-      return JSON.parse(jsonrepair(text))
-    } catch {
-      return null
-    }
-  }
-}
-
-// 从混杂文本里提取所有 JSON 块（按 { / [ 起始，状态机匹配闭合）。
-// 每个 candidate 走 parseLoose（合法优先，截断则修复）；解析失败的块丢弃。
-// 返回解析成功的值数组；一个都没有返回空数组。
-const extractJsonBlocks = (text) => {
-  const blocks = []
-  const starts = []
-  let i = 0
-  const len = text.length
-  while (i < len) {
-    const ch = text[i]
-    if (ch === '{' || ch === '[') {
-      // 从此处开始匹配一个完整 JSON 块
-      let depth = 0
-      let inStr = false
-      let escape = false
-      let j = i
-      for (; j < len; j++) {
-        const c = text[j]
-        if (inStr) {
-          if (escape) escape = false
-          else if (c === '\\') escape = true
-          else if (c === '"') inStr = false
-          continue
-        }
-        if (c === '"') inStr = true
-        else if (c === '{' || c === '[') depth++
-        else if (c === '}' || c === ']') {
-          depth--
-          if (depth === 0) {
-            j++
-            break
-          }
-        }
-      }
-      const candidate = text.slice(i, j)
-      const parsed = parseLoose(candidate)
-      if (parsed !== null) blocks.push(parsed)
-      i = j
-      continue
-    }
-    i++
-  }
-  return blocks
-}
-
 const moveCursorToStart = () => {
   if (!editor) return
   editor.setPosition({ lineNumber: 1, column: 1 })
@@ -326,10 +283,14 @@ const autoFormat = () => {
   if (!editor) return
   const text = editor.getValue().trim()
   if (!text) return
-  // 合法 JSON 直接格式化；不完整 JSON 用 jsonrepair 修复后再格式化；都失败则不处理（右侧报错）
-  const parsed = parseLoose(text)
-  if (parsed === null) return
-  const formatted = JSON.stringify(parsed, null, 2)
+
+  // XML 与块状 YAML 等到粘贴完成或编辑器失焦后再转换，避免输入中途被改写。
+  const isYamlBlock = looksLikeYaml(text) && !/^[{[]/.test(text)
+  if (looksLikeXml(text) || isYamlBlock) return
+
+  const parsed = parseJsonLike(text)
+  if (!parsed.ok) return
+  const formatted = JSON.stringify(parsed.value, null, 2)
   if (formatted === editor.getValue()) return
   const model = editor.getModel()
   const pos = editor.getPosition()
@@ -373,12 +334,18 @@ onMounted(() => {
 
   // 粘贴并（同步）格式化完成后，光标回到首行行首
   editor.onDidPaste(() => {
-    nextTick(() => moveCursorToStart())
+    nextTick(() => {
+      convertForeignToJson(true)
+      moveCursorToStart()
+    })
   })
+
+  editor.onDidBlurEditorText(() => convertForeignToJson(true))
 
   editor.onDidChangeModelContent(() => {
     rawText.value = editor.getValue()
     if (formatting) return // 跳过格式化自身触发的变更，避免递归
+    lastConvertedFormat.value = null
     autoFormat()
   })
 
@@ -406,42 +373,61 @@ watch(mode, () => {
 
 /* ---------------- 工具按钮（作用于编辑器内容） ---------------- */
 
-// 手动格式化：合法 JSON 直接缩进；不完整 JSON 用 jsonrepair 修复后再格式化（会改变原文）
+const setEditorContent = (content, sourceFormat = null) => {
+  if (!editor || content === editor.getValue()) return
+  const model = editor.getModel()
+  const pos = editor.getPosition()
+  formatting = true
+  model.pushEditOperations([], [{ range: model.getFullModelRange(), text: content }], () => null)
+  formatting = false
+  lastConvertedFormat.value = sourceFormat
+  if (pos) editor.setPosition(pos)
+}
+
+const convertForeignToJson = (notify = false) => {
+  if (!editor) return false
+  const text = editor.getValue().trim()
+  if (!text) return false
+
+  const parsed = parseStructuredData(text)
+  if (!parsed.ok || parsed.format === 'json') return false
+
+  setEditorContent(JSON.stringify(parsed.value, null, 2), parsed.format)
+  if (notify) message.success(`已将 ${structuredDataFormatLabel[parsed.format]} 转换为 JSON`)
+  return true
+}
+
+// 手动格式化：自动识别 JSON、XML、YAML，并统一转换成缩进后的 JSON。
 const format = () => {
   if (!editor) return
   const text = editor.getValue().trim()
   if (!text) return
-  const parsed = parseLoose(text)
-  if (parsed === null) {
-    message.error('无法格式化：JSON 不可解析')
+  const parsed = parseStructuredData(text)
+  if (!parsed.ok) {
+    message.error(`无法格式化：${parsed.error}`)
     return
   }
-  const formatted = JSON.stringify(parsed, null, 2)
-  if (formatted === editor.getValue()) return
-  const model = editor.getModel()
-  const pos = editor.getPosition()
-  formatting = true
-  model.pushEditOperations([], [{ range: model.getFullModelRange(), text: formatted }], () => null)
-  formatting = false
-  if (pos) editor.setPosition(pos)
+
+  setEditorContent(
+    JSON.stringify(parsed.value, null, 2),
+    parsed.format === 'json' ? null : parsed.format
+  )
+  if (parsed.format !== 'json') {
+    message.success(`已将 ${structuredDataFormatLabel[parsed.format]} 转换为 JSON`)
+  }
 }
 
 const compress = () => {
   if (!editor) return
   const text = editor.getValue().trim()
   if (!text) return
-  let compressed
-  try {
-    compressed = JSON.stringify(JSON.parse(text))
-  } catch {
-    /* 非法 JSON 时忽略，右侧已报错 */
+  const parsed = parseStructuredData(text)
+  if (!parsed.ok) {
+    message.error(`无法压缩：${parsed.error}`)
     return
   }
-  if (compressed === editor.getValue()) return
-  // 写回期间屏蔽 autoFormat，避免压缩结果又被自动展开
-  formatting = true
-  editor.setValue(compressed)
-  formatting = false
+
+  setEditorContent(JSON.stringify(parsed.value), parsed.format === 'json' ? null : parsed.format)
 }
 
 // 转义：把整段文本转为 JSON 字符串字面量（可直接放进 Java/JS 的 "..." 中）
@@ -451,6 +437,7 @@ const escape = () => {
   formatting = true
   editor.setValue(escaped)
   formatting = false
+  lastConvertedFormat.value = null
 }
 
 // 去除转义：把 JSON 字符串字面量还原为原始文本（输入需是合法的带引号字符串）
@@ -471,6 +458,7 @@ const unEscape = () => {
   formatting = true
   editor.setValue(unescaped)
   formatting = false
+  lastConvertedFormat.value = null
 }
 
 /* ---------------- 复制 ---------------- */
@@ -486,6 +474,17 @@ const onCopy = () => {
 </script>
 
 <style scoped>
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.format-badge {
+  margin-inline-end: 0;
+}
+
 .json-editor {
   width: 100%;
   overflow: hidden;
