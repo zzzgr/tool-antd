@@ -1,99 +1,97 @@
 <template>
-  <div class="qr-tool p-2">
-    <div class="qr-shell">
-      <div class="toolbar mb-3">
-        <a-radio-group v-model:value="mode" size="small" button-style="solid">
-          <a-radio-button value="generate">生成</a-radio-button>
-          <a-radio-button value="decode">识别</a-radio-button>
-        </a-radio-group>
+  <ToolPage width="narrow">
+    <div class="toolbar tool-toolbar mb-3" style="justify-content: center">
+      <a-radio-group v-model:value="mode" size="small" button-style="solid">
+        <a-radio-button value="generate">生成</a-radio-button>
+        <a-radio-button value="decode">识别</a-radio-button>
+      </a-radio-group>
+    </div>
+
+    <!-- 生成 -->
+    <div v-show="mode === 'generate'" class="panel generate-panel">
+      <a-form layout="vertical" class="generate-form">
+        <a-form-item label="文本">
+          <a-textarea v-model:value="text" :rows="6" placeholder="输入要生成二维码的文本 / 链接" />
+        </a-form-item>
+
+        <a-form-item label="标题">
+          <a-input v-model:value="title" placeholder="可选，显示在二维码上方" allow-clear />
+        </a-form-item>
+
+        <a-form-item label="宽高">
+          <a-input-number v-model:value="size" :min="96" :max="1024" :step="32" class="size-input" />
+        </a-form-item>
+      </a-form>
+
+      <div v-if="text.length > 0 && composedUrl" class="preview-wrap">
+        <img :src="composedUrl" class="qr-img" alt="二维码" />
       </div>
 
-      <!-- 生成 -->
-      <div v-show="mode === 'generate'" class="panel generate-panel">
-        <a-form layout="vertical" class="generate-form">
-          <a-form-item label="文本">
-            <a-textarea v-model:value="text" :rows="6" placeholder="输入要生成二维码的文本 / 链接" />
-          </a-form-item>
+      <div v-if="text.length > 0" class="qr-hidden">
+        <vue-qr :size="size" :text="text" :margin="16" :callback="onQrReady" />
+      </div>
+    </div>
 
-          <a-form-item label="标题">
-            <a-input v-model:value="title" placeholder="可选，显示在二维码上方" allow-clear />
-          </a-form-item>
+    <!-- 识别 -->
+    <div v-show="mode === 'decode'" class="panel decode-panel">
+      <div
+        class="drop-zone"
+        :class="{ 'is-dragover': dragOver, 'has-preview': !!previewUrl }"
+        @dragenter.prevent="dragOver = true"
+        @dragover.prevent="dragOver = true"
+        @dragleave.prevent="dragOver = false"
+        @drop.prevent="onDrop"
+        @click="openFilePicker"
+        @paste="onPaste"
+        tabindex="0"
+      >
+        <input
+          ref="fileInputRef"
+          type="file"
+          accept="image/*"
+          class="file-input"
+          @change="onFileChange"
+        />
 
-          <a-form-item label="宽高">
-            <a-input-number v-model:value="size" :min="96" :max="1024" :step="32" class="size-input" />
-          </a-form-item>
-        </a-form>
+        <img v-if="previewUrl" :src="previewUrl" class="decode-preview" alt="待识别图片" />
 
-        <div v-if="text.length > 0 && composedUrl" class="preview-wrap">
-          <img :src="composedUrl" class="qr-img" alt="二维码" />
-        </div>
-
-        <div v-if="text.length > 0" class="qr-hidden">
-          <vue-qr :size="size" :text="text" :margin="16" :callback="onQrReady" />
+        <div v-else class="drop-placeholder">
+          <QrcodeOutlined class="drop-icon" />
+          <div class="drop-title">点击选择 / 拖拽图片 / 粘贴截图</div>
+          <div class="drop-desc">支持常见图片格式，本地识别不上传</div>
         </div>
       </div>
 
-      <!-- 识别 -->
-      <div v-show="mode === 'decode'" class="panel decode-panel">
-        <div
-          class="drop-zone"
-          :class="{ 'is-dragover': dragOver, 'has-preview': !!previewUrl }"
-          @dragenter.prevent="dragOver = true"
-          @dragover.prevent="dragOver = true"
-          @dragleave.prevent="dragOver = false"
-          @drop.prevent="onDrop"
-          @click="openFilePicker"
-          @paste="onPaste"
-          tabindex="0"
+      <div class="decode-actions">
+        <a-button
+          size="small"
+          :disabled="!previewUrl || decoding"
+          :loading="decoding"
+          @click="decodeCurrent"
         >
-          <input
-            ref="fileInputRef"
-            type="file"
-            accept="image/*"
-            class="file-input"
-            @change="onFileChange"
-          />
+          重新识别
+        </a-button>
+        <a-button size="small" :disabled="!previewUrl" @click="clearDecode">清空</a-button>
+      </div>
 
-          <img v-if="previewUrl" :src="previewUrl" class="decode-preview" alt="待识别图片" />
+      <div v-if="decodeError" class="mt-2 result-block">
+        <a-alert type="error" show-icon :message="decodeError" />
+      </div>
 
-          <div v-else class="drop-placeholder">
-            <QrcodeOutlined class="drop-icon" />
-            <div class="drop-title">点击选择 / 拖拽图片 / 粘贴截图</div>
-            <div class="drop-desc">支持常见图片格式，本地识别不上传</div>
-          </div>
-        </div>
-
-        <div class="decode-actions">
-          <a-button
-            size="small"
-            :disabled="!previewUrl || decoding"
-            :loading="decoding"
-            @click="decodeCurrent"
-          >
-            重新识别
+      <div v-if="decodeResult !== null" class="mt-2 result-block">
+        <div class="result-header">
+          <span class="result-label">识别结果</span>
+          <a-button type="link" size="small" :disabled="!decodeResult" @click="copyResult">
+            复制
           </a-button>
-          <a-button size="small" :disabled="!previewUrl" @click="clearDecode">清空</a-button>
         </div>
-
-        <div v-if="decodeError" class="mt-2 result-block">
-          <a-alert type="error" show-icon :message="decodeError" />
-        </div>
-
-        <div v-if="decodeResult !== null" class="mt-2 result-block">
-          <div class="result-header">
-            <span class="result-label">识别结果</span>
-            <a-button type="link" size="small" :disabled="!decodeResult" @click="copyResult">
-              复制
-            </a-button>
-          </div>
-          <a-textarea :value="decodeResult" :rows="5" readonly class="result-box" />
-          <div v-if="isLikelyUrl(decodeResult)" class="mt-2 open-link-row">
-            <a-button size="small" type="primary" @click="openResultUrl">打开链接</a-button>
-          </div>
+        <a-textarea :value="decodeResult" :rows="5" readonly class="result-box tool-mono" />
+        <div v-if="isLikelyUrl(decodeResult)" class="mt-2 open-link-row">
+          <a-button size="small" type="primary" @click="openResultUrl">打开链接</a-button>
         </div>
       </div>
     </div>
-  </div>
+  </ToolPage>
 </template>
 
 <script setup lang="ts">
@@ -103,6 +101,7 @@ import { QrcodeOutlined } from '@ant-design/icons-vue'
 import vueQr from 'vue-qr/src/packages/vue-qr.vue'
 import jsQR from 'jsqr'
 import { copy } from '@/util/util'
+import ToolPage from '@/components/tool-page/index.vue'
 
 type Mode = 'generate' | 'decode'
 
@@ -355,22 +354,6 @@ watch(mode, (m) => {
 </script>
 
 <style scoped>
-.qr-tool {
-  display: flex;
-  justify-content: center;
-}
-
-.qr-shell {
-  width: 100%;
-  max-width: 640px;
-}
-
-.toolbar {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
 .panel {
   width: 100%;
 }
@@ -391,7 +374,7 @@ watch(mode, (m) => {
 
 .qr-img {
   max-width: 100%;
-  border-radius: 8px;
+  border-radius: var(--app-radius-sm);
   box-shadow: 0 2px 12px var(--app-shadow);
 }
 
@@ -405,7 +388,7 @@ watch(mode, (m) => {
   position: relative;
   min-height: 240px;
   border: 1.5px dashed var(--app-card-border);
-  border-radius: 12px;
+  border-radius: var(--app-radius);
   background: var(--app-card-bg);
   display: flex;
   align-items: center;
@@ -492,7 +475,7 @@ watch(mode, (m) => {
 }
 
 .result-box :deep(textarea) {
-  font-family: 'JetBrains Mono', Menlo, Consolas, monospace;
+  font-family: var(--app-mono);
   font-size: 13px;
 }
 

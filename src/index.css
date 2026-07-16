@@ -20,6 +20,15 @@
   /* 首页标题：基底色 + 扫光高光色 */
   --title-base: #44403c;
   --title-shimmer: #1d4ed8;
+
+  /* 布局 / 字体 / 控件统一 token */
+  --app-content-narrow: 640px;
+  --app-content-wide: 960px;
+  --app-radius: 10px;
+  --app-radius-sm: 8px;
+  --app-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+    'Courier New', monospace;
+  --app-toolbar-gap: 8px;
 }
 
 :root[data-theme='dark'] {
@@ -77,4 +86,78 @@ body {
 .copyable:active {
   transform: translateY(1px);
   box-shadow: 0 1px 4px var(--app-shadow);
+}
+
+/* 统一工具栏：各页可直接用 tool-toolbar */
+.tool-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--app-toolbar-gap);
+}
+
+.tool-toolbar__left,
+.tool-toolbar__right {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--app-toolbar-gap);
+}
+
+.tool-toolbar__right {
+  margin-left: auto;
+}
+
+.tool-mono {
+  font-family: var(--app-mono);
+}
+
+.tool-surface {
+  border: 1px solid var(--app-card-border);
+  border-radius: var(--app-radius);
+  background: var(--app-card-bg);
+  box-shadow: 0 1px 2px var(--app-shadow);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
+}
+
+/* 页面进入：轻量淡入上浮 */
+.page-enter {
+  animation: page-enter 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 按钮轻按压反馈（工具栏等） */
+.tool-toolbar :deep(.ant-btn) {
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.tool-toolbar :deep(.ant-btn:active:not(:disabled)) {
+  transform: translateY(1px) scale(0.98);
+}
+
+/* 减少动效偏好 */
+@media (prefers-reduced-motion: reduce) {
+  .page-enter,
+  .tool-toolbar :deep(.ant-btn) {
+    animation: none !important;
+    transition: none !important;
+  }
 }

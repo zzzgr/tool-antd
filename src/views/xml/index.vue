@@ -1,28 +1,32 @@
 <template>
-  <div class="xml-tool p-2">
-    <div class="toolbar mb-2">
-      <a-button-group size="small">
-        <a-button type="primary" @click="formatContent(false)">格式化</a-button>
-        <a-button @click="minifyContent">压缩</a-button>
-        <a-button :disabled="!rawText" @click="copyContent">复制</a-button>
-        <a-button :disabled="!rawText" @click="clearContent">清空</a-button>
-      </a-button-group>
+  <ToolPage width="full">
+    <template #toolbar>
+      <div class="tool-toolbar">
+        <div class="tool-toolbar__left">
+          <a-button-group size="small">
+            <a-button type="primary" @click="formatContent(false)">格式化</a-button>
+            <a-button @click="minifyContent">压缩</a-button>
+            <a-button :disabled="!rawText" @click="copyContent">复制</a-button>
+            <a-button :disabled="!rawText" @click="clearContent">清空</a-button>
+          </a-button-group>
 
-      <span class="option-label">缩进</span>
-      <a-radio-group v-model:value="indentSize" size="small" @change="formatContent(true)">
-        <a-radio-button :value="2">2 空格</a-radio-button>
-        <a-radio-button :value="4">4 空格</a-radio-button>
-      </a-radio-group>
+          <span class="option-label">缩进</span>
+          <a-radio-group v-model:value="indentSize" size="small" @change="formatContent(true)">
+            <a-radio-button :value="2">2 空格</a-radio-button>
+            <a-radio-button :value="4">4 空格</a-radio-button>
+          </a-radio-group>
 
-      <a-tag
-        v-if="rawText"
-        :color="validationPending ? 'processing' : validationError ? 'error' : 'success'"
-      >
-        {{ validationPending ? '正在校验' : validationError ? 'XML 格式有误' : 'XML 格式正确' }}
-      </a-tag>
-    </div>
+          <a-tag
+            v-if="rawText"
+            :color="validationPending ? 'processing' : validationError ? 'error' : 'success'"
+          >
+            {{ validationPending ? '正在校验' : validationError ? 'XML 格式有误' : 'XML 格式正确' }}
+          </a-tag>
+        </div>
+      </div>
+    </template>
 
-    <div ref="editorShell" class="editor-shell border border-solid rounded-md">
+    <div ref="editorShell" class="editor-shell tool-surface">
       <div ref="editorEl" class="xml-editor"></div>
       <div v-if="!rawText" class="editor-placeholder">粘贴或输入 XML 内容</div>
     </div>
@@ -30,7 +34,7 @@
     <div v-if="validationError" ref="errorArea" class="mt-2">
       <a-alert class="error-alert" type="error" show-icon :message="validationError" />
     </div>
-  </div>
+  </ToolPage>
 </template>
 
 <script setup lang="ts">
@@ -41,6 +45,7 @@ import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { copy } from '@/util/util'
 import { validateXml } from '@/util/structuredData'
 import { useThemeStore } from '@/stores/theme'
+import ToolPage from '@/components/tool-page/index.vue'
 
 const themeStore = useThemeStore()
 const editorEl = ref<HTMLElement | null>(null)
@@ -238,8 +243,6 @@ onBeforeUnmount(() => {
   position: relative;
   min-height: 280px;
   overflow: hidden;
-  border-color: var(--app-card-border);
-  background: var(--app-card-bg);
 }
 
 .xml-editor {
@@ -253,14 +256,14 @@ onBeforeUnmount(() => {
   left: 66px;
   z-index: 2;
   color: var(--app-muted);
-  font-family: 'JetBrains Mono', Menlo, Consolas, monospace;
+  font-family: var(--app-mono);
   font-size: 13px;
   pointer-events: none;
   opacity: 0.75;
 }
 
 .error-alert :deep(.ant-alert-message) {
-  font-family: 'JetBrains Mono', Menlo, Consolas, monospace;
+  font-family: var(--app-mono);
   font-size: 12px;
   word-break: break-word;
 }

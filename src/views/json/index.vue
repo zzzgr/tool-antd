@@ -1,27 +1,30 @@
 <template>
-  <div class="json-tool p-2">
-    <!-- 工具按钮 -->
-    <div class="toolbar mb-2">
-      <a-button-group size="small">
-        <a-button type="primary" @click="format()">格式化</a-button>
-        <a-button type="primary" @click="compress()">压缩</a-button>
-        <a-button type="primary" @click="unEscape()">去除转义</a-button>
-        <a-button type="primary" @click="escape()">转义</a-button>
-      </a-button-group>
-      <a-tag v-if="formatBadge" class="format-badge" color="processing">{{ formatBadge }}</a-tag>
-    </div>
+  <ToolPage width="full">
+    <template #toolbar>
+      <div class="tool-toolbar">
+        <div class="tool-toolbar__left">
+          <a-button-group size="small">
+            <a-button type="primary" @click="format()">格式化</a-button>
+            <a-button type="primary" @click="compress()">压缩</a-button>
+            <a-button type="primary" @click="unEscape()">去除转义</a-button>
+            <a-button type="primary" @click="escape()">转义</a-button>
+          </a-button-group>
+          <a-tag v-if="formatBadge" class="format-badge" color="processing">{{ formatBadge }}</a-tag>
+        </div>
+      </div>
+    </template>
 
     <a-row :gutter="16">
       <!-- 左侧：编辑器 -->
       <a-col :xs="24" :md="renderVisible ? 12 : 24">
-        <div ref="editorEl" class="json-editor border border-solid rounded-md"></div>
+        <div ref="editorEl" class="json-editor tool-surface"></div>
       </a-col>
 
       <!-- 右侧：渲染区（按需展开） -->
       <a-col v-if="renderVisible" :xs="24" :md="12">
         <div
           ref="renderWrapper"
-          class="render-area border border-solid rounded-md"
+          class="render-area tool-surface"
           :style="{ height: editorHeight + 'px' }"
         >
           <a-button v-if="!errorMsg" type="link" size="small" class="copy-btn" @click="onCopy()"
@@ -29,7 +32,7 @@
           </a-button>
 
           <!-- 错误（JSON 解析错误 / 表达式错误） -->
-          <div v-if="errorMsg" class="render-error">{{ errorMsg }}</div>
+          <div v-if="errorMsg" class="render-error tool-mono">{{ errorMsg }}</div>
 
           <!-- 对象 / 数组 -->
           <Json-view
@@ -42,7 +45,7 @@
           />
 
           <!-- 基本类型（数字 / 字符串 / 布尔 / null / undefined） -->
-          <pre v-else class="render-primitive">{{ primitiveText }}</pre>
+          <pre v-else class="render-primitive tool-mono">{{ primitiveText }}</pre>
         </div>
       </a-col>
     </a-row>
@@ -79,7 +82,7 @@
         >
       </div>
     </div>
-  </div>
+  </ToolPage>
 </template>
 
 <script setup>
@@ -90,6 +93,7 @@ import { JSONPath } from 'jsonpath-plus'
 import { message } from 'ant-design-vue'
 import { copy } from '@/util/util'
 import { useThemeStore } from '@/stores/theme'
+import ToolPage from '@/components/tool-page/index.vue'
 import {
   looksLikeXml,
   looksLikeYaml,
@@ -488,17 +492,16 @@ const onCopy = () => {
 .json-editor {
   width: 100%;
   overflow: hidden;
-  border-color: var(--app-card-border);
 }
 
 .filter-input :deep(.ant-input-group-addon) {
-  font-family: 'JetBrains Mono', Menlo, Consolas, monospace;
+  font-family: var(--app-mono);
   font-weight: 600;
   color: var(--app-muted);
 }
 
 .filter-input :deep(input) {
-  font-family: 'JetBrains Mono', Menlo, Consolas, monospace;
+  font-family: var(--app-mono);
 }
 
 .fn-buttons {
@@ -508,7 +511,7 @@ const onCopy = () => {
 }
 
 .fn-btn {
-  font-family: 'JetBrains Mono', Menlo, Consolas, monospace;
+  font-family: var(--app-mono);
 }
 
 .render-area {
@@ -517,8 +520,6 @@ const onCopy = () => {
   min-height: 240px;
   overflow: auto;
   padding: 8px 12px;
-  background: var(--app-card-bg);
-  border-color: var(--app-card-border);
 }
 
 .copy-btn {
@@ -530,7 +531,7 @@ const onCopy = () => {
 
 .render-error {
   color: #ef4444;
-  font-family: 'JetBrains Mono', Menlo, Consolas, monospace;
+  font-family: var(--app-mono);
   font-size: 13px;
   line-height: 1.6;
   white-space: pre-wrap;
@@ -541,7 +542,7 @@ const onCopy = () => {
 .render-primitive {
   margin: 0;
   color: var(--app-text);
-  font-family: 'JetBrains Mono', Menlo, Consolas, monospace;
+  font-family: var(--app-mono);
   font-size: 13px;
   white-space: pre-wrap;
   word-break: break-word;

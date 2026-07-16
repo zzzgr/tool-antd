@@ -1,161 +1,163 @@
 <template>
-  <div class="markdown-tool p-2">
-    <div class="toolbar mb-2">
-      <div class="toolbar-left">
-        <a-radio-group v-model:value="layoutMode" size="small" button-style="solid">
-          <a-radio-button value="edit">仅编辑</a-radio-button>
-          <a-radio-button value="split">分屏</a-radio-button>
-          <a-radio-button value="preview">仅渲染</a-radio-button>
-        </a-radio-group>
+  <ToolPage width="full">
+    <template #toolbar>
+      <div class="tool-toolbar">
+        <div class="tool-toolbar__left">
+          <a-radio-group v-model:value="layoutMode" size="small" button-style="solid">
+            <a-radio-button value="edit">仅编辑</a-radio-button>
+            <a-radio-button value="split">分屏</a-radio-button>
+            <a-radio-button value="preview">仅渲染</a-radio-button>
+          </a-radio-group>
 
-        <a-divider type="vertical" class="toolbar-divider" />
+          <a-divider type="vertical" class="toolbar-divider" />
 
-        <div class="format-bar">
-          <a-tooltip title="加粗">
-            <button type="button" class="fmt-btn" @click="wrapSelection('**', '**')">
-              <BoldOutlined />
-            </button>
-          </a-tooltip>
-          <a-tooltip title="斜体">
-            <button type="button" class="fmt-btn" @click="wrapSelection('*', '*')">
-              <ItalicOutlined />
-            </button>
-          </a-tooltip>
-          <a-tooltip title="删除线">
-            <button type="button" class="fmt-btn" @click="wrapSelection('~~', '~~')">
-              <StrikethroughOutlined />
-            </button>
-          </a-tooltip>
+          <div class="format-bar">
+            <a-tooltip title="加粗">
+              <button type="button" class="fmt-btn" @click="wrapSelection('**', '**')">
+                <BoldOutlined />
+              </button>
+            </a-tooltip>
+            <a-tooltip title="斜体">
+              <button type="button" class="fmt-btn" @click="wrapSelection('*', '*')">
+                <ItalicOutlined />
+              </button>
+            </a-tooltip>
+            <a-tooltip title="删除线">
+              <button type="button" class="fmt-btn" @click="wrapSelection('~~', '~~')">
+                <StrikethroughOutlined />
+              </button>
+            </a-tooltip>
 
-          <span class="fmt-sep" />
+            <span class="fmt-sep" />
 
-          <a-dropdown :trigger="['click']" :get-popup-container="getPopupContainer">
-            <button type="button" class="fmt-btn">
-              <FontSizeOutlined />
-            </button>
-            <template #overlay>
-              <a-menu @click="onHeadingMenu">
-                <a-menu-item key="1">一级标题 #</a-menu-item>
-                <a-menu-item key="2">二级标题 ##</a-menu-item>
-                <a-menu-item key="3">三级标题 ###</a-menu-item>
-                <a-menu-item key="4">四级标题 ####</a-menu-item>
-                <a-menu-item key="5">五级标题 #####</a-menu-item>
-                <a-menu-item key="6">六级标题 ######</a-menu-item>
-              </a-menu>
-            </template>
-          </a-dropdown>
+            <a-dropdown :trigger="['click']" :get-popup-container="getPopupContainer">
+              <button type="button" class="fmt-btn">
+                <FontSizeOutlined />
+              </button>
+              <template #overlay>
+                <a-menu @click="onHeadingMenu">
+                  <a-menu-item key="1">一级标题 #</a-menu-item>
+                  <a-menu-item key="2">二级标题 ##</a-menu-item>
+                  <a-menu-item key="3">三级标题 ###</a-menu-item>
+                  <a-menu-item key="4">四级标题 ####</a-menu-item>
+                  <a-menu-item key="5">五级标题 #####</a-menu-item>
+                  <a-menu-item key="6">六级标题 ######</a-menu-item>
+                </a-menu>
+              </template>
+            </a-dropdown>
 
-          <a-tooltip title="无序列表">
-            <button type="button" class="fmt-btn" @click="toggleLinePrefix('- ')">
-              <UnorderedListOutlined />
-            </button>
-          </a-tooltip>
-          <a-tooltip title="有序列表">
-            <button type="button" class="fmt-btn" @click="toggleLinePrefix('1. ')">
-              <OrderedListOutlined />
-            </button>
-          </a-tooltip>
-          <a-tooltip title="任务列表">
-            <button type="button" class="fmt-btn" @click="toggleLinePrefix('- [ ] ')">
-              <CheckSquareOutlined />
-            </button>
-          </a-tooltip>
-          <a-tooltip title="引用">
-            <button type="button" class="fmt-btn" @click="toggleLinePrefix('> ')">
-              <FontColorsOutlined />
-            </button>
-          </a-tooltip>
+            <a-tooltip title="无序列表">
+              <button type="button" class="fmt-btn" @click="toggleLinePrefix('- ')">
+                <UnorderedListOutlined />
+              </button>
+            </a-tooltip>
+            <a-tooltip title="有序列表">
+              <button type="button" class="fmt-btn" @click="toggleLinePrefix('1. ')">
+                <OrderedListOutlined />
+              </button>
+            </a-tooltip>
+            <a-tooltip title="任务列表">
+              <button type="button" class="fmt-btn" @click="toggleLinePrefix('- [ ] ')">
+                <CheckSquareOutlined />
+              </button>
+            </a-tooltip>
+            <a-tooltip title="引用">
+              <button type="button" class="fmt-btn" @click="toggleLinePrefix('> ')">
+                <FontColorsOutlined />
+              </button>
+            </a-tooltip>
 
-          <span class="fmt-sep" />
+            <span class="fmt-sep" />
 
-          <a-tooltip title="行内代码">
-            <button type="button" class="fmt-btn" @click="wrapSelection('`', '`')">
-              <CodeOutlined />
-            </button>
-          </a-tooltip>
-          <a-tooltip title="代码块">
-            <button type="button" class="fmt-btn" @click="insertCodeBlock">
-              <ConsoleSqlOutlined />
-            </button>
-          </a-tooltip>
-          <a-tooltip title="链接">
-            <button type="button" class="fmt-btn" @click="insertLink">
-              <LinkOutlined />
-            </button>
-          </a-tooltip>
-          <a-tooltip title="图片">
-            <button type="button" class="fmt-btn" @click="insertImage">
-              <PictureOutlined />
-            </button>
-          </a-tooltip>
-          <a-tooltip title="表格">
-            <button type="button" class="fmt-btn" @click="insertTable">
-              <TableOutlined />
-            </button>
-          </a-tooltip>
-          <a-tooltip title="分隔线">
-            <button type="button" class="fmt-btn" @click="insertHr">
-              <MinusOutlined />
-            </button>
-          </a-tooltip>
+            <a-tooltip title="行内代码">
+              <button type="button" class="fmt-btn" @click="wrapSelection('`', '`')">
+                <CodeOutlined />
+              </button>
+            </a-tooltip>
+            <a-tooltip title="代码块">
+              <button type="button" class="fmt-btn" @click="insertCodeBlock">
+                <ConsoleSqlOutlined />
+              </button>
+            </a-tooltip>
+            <a-tooltip title="链接">
+              <button type="button" class="fmt-btn" @click="insertLink">
+                <LinkOutlined />
+              </button>
+            </a-tooltip>
+            <a-tooltip title="图片">
+              <button type="button" class="fmt-btn" @click="insertImage">
+                <PictureOutlined />
+              </button>
+            </a-tooltip>
+            <a-tooltip title="表格">
+              <button type="button" class="fmt-btn" @click="insertTable">
+                <TableOutlined />
+              </button>
+            </a-tooltip>
+            <a-tooltip title="分隔线">
+              <button type="button" class="fmt-btn" @click="insertHr">
+                <MinusOutlined />
+              </button>
+            </a-tooltip>
 
-          <span class="fmt-sep" />
+            <span class="fmt-sep" />
 
-          <a-tooltip title="撤销">
-            <button type="button" class="fmt-btn" @click="undo">
-              <UndoOutlined />
-            </button>
-          </a-tooltip>
-          <a-tooltip title="重做">
-            <button type="button" class="fmt-btn" @click="redo">
-              <RedoOutlined />
-            </button>
-          </a-tooltip>
-          <a-tooltip title="清空">
-            <button type="button" class="fmt-btn danger" :disabled="!text" @click="clearContent">
-              <ClearOutlined />
-            </button>
-          </a-tooltip>
+            <a-tooltip title="撤销">
+              <button type="button" class="fmt-btn" @click="undo">
+                <UndoOutlined />
+              </button>
+            </a-tooltip>
+            <a-tooltip title="重做">
+              <button type="button" class="fmt-btn" @click="redo">
+                <RedoOutlined />
+              </button>
+            </a-tooltip>
+            <a-tooltip title="清空">
+              <button type="button" class="fmt-btn danger" :disabled="!text" @click="clearContent">
+                <ClearOutlined />
+              </button>
+            </a-tooltip>
+          </div>
+
+          <a-divider type="vertical" class="toolbar-divider" />
+
+          <a-select
+            v-model:value="previewTheme"
+            size="small"
+            class="theme-select"
+            :options="previewThemeOptions"
+            :get-popup-container="getPopupContainer"
+          />
+
+          <a-checkbox v-if="layoutMode === 'split'" v-model:checked="scrollSync" class="scroll-check">
+            同步滚动
+          </a-checkbox>
+
+          <span v-if="text" class="char-count">{{ charCount }} 字</span>
         </div>
 
-        <a-divider type="vertical" class="toolbar-divider" />
-
-        <a-select
-          v-model:value="previewTheme"
-          size="small"
-          class="theme-select"
-          :options="previewThemeOptions"
-          :get-popup-container="getPopupContainer"
-        />
-
-        <a-checkbox v-if="layoutMode === 'split'" v-model:checked="scrollSync" class="scroll-check">
-          同步滚动
-        </a-checkbox>
-
-        <span v-if="text" class="char-count">{{ charCount }} 字</span>
+        <div class="tool-toolbar__right">
+          <a-button size="small" :disabled="!text" :loading="exporting" @click="copyImage">
+            <template #icon><CameraOutlined /></template>
+            复制图片
+          </a-button>
+          <a-button size="small" :disabled="!text" :loading="exporting" @click="exportImage">
+            <template #icon><DownloadOutlined /></template>
+            导出图片
+          </a-button>
+          <a-button size="small" :disabled="!text" @click="copyMarkdown">
+            <template #icon><CopyOutlined /></template>
+            复制 MD
+          </a-button>
+          <a-button size="small" :disabled="!html" @click="copyHtml">
+            <template #icon><Html5Outlined /></template>
+            复制 HTML
+          </a-button>
+        </div>
       </div>
+    </template>
 
-      <div class="toolbar-right">
-        <a-button size="small" :disabled="!text" :loading="exporting" @click="copyImage">
-          <template #icon><CameraOutlined /></template>
-          复制图片
-        </a-button>
-        <a-button size="small" :disabled="!text" :loading="exporting" @click="exportImage">
-          <template #icon><DownloadOutlined /></template>
-          导出图片
-        </a-button>
-        <a-button size="small" :disabled="!text" @click="copyMarkdown">
-          <template #icon><CopyOutlined /></template>
-          复制 MD
-        </a-button>
-        <a-button size="small" :disabled="!html" @click="copyHtml">
-          <template #icon><Html5Outlined /></template>
-          复制 HTML
-        </a-button>
-      </div>
-    </div>
-
-    <div ref="workspaceRef" class="workspace" :style="{ height: workspaceHeight + 'px' }">
+    <div ref="workspaceRef" class="workspace tool-surface" :style="{ height: workspaceHeight + 'px' }">
       <div
         v-show="layoutMode !== 'preview'"
         ref="editorPaneRef"
@@ -207,7 +209,7 @@
         </div>
       </div>
     </div>
-  </div>
+  </ToolPage>
 </template>
 
 <script setup lang="ts">
@@ -242,6 +244,7 @@ import {
 import html2canvas from 'html2canvas'
 import { copy } from '@/util/util'
 import { useThemeStore } from '@/stores/theme'
+import ToolPage from '@/components/tool-page/index.vue'
 
 type LayoutMode = 'edit' | 'split' | 'preview'
 
@@ -1055,29 +1058,6 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px 12px;
-}
-
-.toolbar-left {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.toolbar-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-left: auto;
-}
-
 .toolbar-divider {
   margin: 0 2px;
   border-color: var(--app-card-border);
@@ -1091,7 +1071,7 @@ onBeforeUnmount(() => {
   gap: 2px;
   padding: 2px;
   border: 1px solid var(--app-card-border);
-  border-radius: 8px;
+  border-radius: var(--app-radius-sm);
   background: var(--app-card-bg);
   box-shadow: 0 1px 2px var(--app-shadow);
 }
@@ -1159,11 +1139,7 @@ onBeforeUnmount(() => {
   display: flex;
   width: 100%;
   min-height: 360px;
-  border: 1px solid var(--app-card-border);
-  border-radius: 8px;
   overflow: hidden;
-  background: var(--app-card-bg);
-  box-shadow: 0 1px 2px var(--app-shadow);
 }
 
 .pane {
