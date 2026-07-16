@@ -63,7 +63,7 @@ const router = createRouter({
       name: 'qr',
       component: () => import('@/views/qr/index.vue'),
       meta: {
-        title: '二维码制作'
+        title: '二维码'
       }
     },
     {

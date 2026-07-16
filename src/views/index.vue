@@ -76,10 +76,10 @@ const allTool = [
   },
   {
     path: '/qr',
-    title: '二维码制作',
+    title: '二维码',
     icon: 'qrcode',
     iconColor: '#06b6d4',
-    desc: '在线生成静态二维码'
+    desc: '二维码生成与图片识别'
   },
   {
     path: '/textShare',
