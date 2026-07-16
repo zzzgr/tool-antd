@@ -35,6 +35,14 @@ const router = createRouter({
       }
     },
     {
+      path: '/markdown',
+      name: 'markdown',
+      component: () => import('@/views/markdown/index.vue'),
+      meta: {
+        title: 'Markdown 渲染'
+      }
+    },
+    {
       path: '/picbed',
       name: 'picbed',
       component: () => import('@/views/picbed/index.vue'),

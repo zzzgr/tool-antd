@@ -61,6 +61,13 @@ const allTool = [
     desc: 'XML 格式化、压缩与校验'
   },
   {
+    path: '/markdown',
+    title: 'Markdown',
+    icon: 'markdown',
+    iconColor: '#64748b',
+    desc: 'Markdown 分屏编辑与实时渲染'
+  },
+  {
     path: '/codec',
     title: '编码 / 安全',
     icon: 'codec',
