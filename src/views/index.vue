@@ -25,10 +25,10 @@
         </a-radio-group>
       </div>
 
-      <a-row :gutter="[16, 16]" align="stretch" class="tool-grid">
+      <a-row :key="listRenderKey" :gutter="[16, 16]" align="stretch" class="tool-grid">
         <a-col
           v-for="(t, idx) in filteredTool"
-          :key="t.path"
+          :key="`${listRenderKey}-${t.path}`"
           :xs="24"
           :md="8"
           :lg="6"
@@ -203,6 +203,11 @@ const searchKey = ref('')
 const activeCategory = ref<(typeof categories)[number]['key']>('all')
 const hoveredPath = ref<string | null>(null)
 
+// 分类/搜索切换时强制重建列表，避免复用 DOM 导致入场动画只重播新增项
+const listRenderKey = computed(
+  () => `${activeCategory.value}::${searchKey.value.trim().toLowerCase()}`
+)
+
 const filteredTool = computed(() => {
   const k = searchKey.value.trim().toLowerCase()
   let list = allTool
@@ -295,6 +300,7 @@ const filteredTool = computed(() => {
 .tool-col {
   animation: card-enter 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
   animation-delay: calc(var(--stagger, 0) * 35ms);
+  will-change: opacity, transform;
 }
 
 @keyframes card-enter {
@@ -417,7 +423,6 @@ const filteredTool = computed(() => {
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* 沿边框奔跑的光效（hover 触发） */
 @property --beam-angle {
   syntax: '<angle>';
   initial-value: 0deg;
