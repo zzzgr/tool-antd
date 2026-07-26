@@ -26,6 +26,9 @@ importers:
       gif.js:
         specifier: ^0.2.0
         version: 0.2.0
+      gifuct-js:
+        specifier: ^2.1.2
+        version: 2.1.2
       highlight.js:
         specifier: ^11.11.1
         version: 11.11.1
@@ -1419,6 +1422,9 @@ packages:
 
   gif.js@0.2.0:
     resolution: {integrity: sha512-bYxCoT8OZKmbxY8RN4qDiYuj4nrQDTzgLRcFVovyona1PTWNePzI4nzOmotnlOFIzTk/ZxAHtv+TfVLiBWj/hw==}
+
+  gifuct-js@2.1.2:
+    resolution: {integrity: sha512-rI2asw77u0mGgwhV3qA+OEgYqaDn5UNqgs+Bx0FGwSpuqfYn+Ir6RQY5ENNQ8SbIiG/m5gVa7CD5RriO4f4Lsg==}
 
   glob-parent@5.1.2:
     resolution: {integrity: sha512-AOIgSQCepiJYwP3ARnGx+5VnTu2HBYdzbGP45eLw1vr3zB3vZLeyed1sC9hnbcOc9/SrMyM5RPQrkGz4aS9Zow==}
@@ -4011,6 +4017,10 @@ snapshots:
   function-bind@1.1.2: {}
 
   gif.js@0.2.0: {}
+
+  gifuct-js@2.1.2:
+    dependencies:
+      js-binary-schema-parser: 2.0.3
 
   glob-parent@5.1.2:
     dependencies:

@@ -158,10 +158,10 @@ const allTool: ToolItem[] = [
   },
   {
     path: '/gifscroll',
-    title: 'GIF滚动',
+    title: '表情包制作',
     icon: 'gif',
     iconColor: '#ec4899',
-    desc: '图片转滚动GIF表情包',
+    desc: '滚动 GIF / n×n 宫格表情包',
     category: 'image'
   },
   {

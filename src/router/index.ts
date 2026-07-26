@@ -123,7 +123,7 @@ const router = createRouter({
       name: 'gifscroll',
       component: () => import('@/views/gifscroll/index.vue'),
       meta: {
-        title: 'GIF滚动生成'
+        title: '表情包制作'
       }
     },
 
