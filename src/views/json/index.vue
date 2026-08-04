@@ -8,6 +8,7 @@
             <a-button type="primary" @click="compress()">压缩</a-button>
             <a-button type="primary" @click="unEscape()">去除转义</a-button>
             <a-button type="primary" @click="escape()">转义</a-button>
+            <a-button type="primary" @click="sortKeys()">{{ sortButtonLabel }}</a-button>
           </a-button-group>
           <a-tag v-if="formatBadge" class="format-badge" color="processing">{{ formatBadge }}</a-tag>
         </div>
@@ -99,8 +100,10 @@ import {
   looksLikeYaml,
   parseJsonLike,
   parseStructuredData,
+  sortObjectKeys,
   structuredDataFormatLabel
 } from '@/util/structuredData'
+import { looksLikeJavaToString } from '@/util/javaToString'
 
 const themeStore = useThemeStore()
 
@@ -294,6 +297,9 @@ const autoFormat = () => {
 
   const parsed = parseJsonLike(text)
   if (!parsed.ok) return
+  // jsonrepair 会把 Java toString 的 `a=1` “修”成完全错误的结构，
+  // 这类内容交给粘贴 / 失焦时的格式识别处理，输入过程中不要自动改写。
+  if (parsed.repaired && looksLikeJavaToString(text)) return
   const formatted = JSON.stringify(parsed.value, null, 2)
   if (formatted === editor.getValue()) return
   const model = editor.getModel()
@@ -432,6 +438,25 @@ const compress = () => {
   }
 
   setEditorContent(JSON.stringify(parsed.value), parsed.format === 'json' ? null : parsed.format)
+}
+
+// 按 key 排序：按钮上显示的是「下一次点击会做什么」，点完再翻转方向
+const nextSortAsc = ref(true)
+const sortButtonLabel = computed(() => (nextSortAsc.value ? 'Key A→Z' : 'Key Z→A'))
+
+const sortKeys = () => {
+  if (!editor) return
+  const text = editor.getValue().trim()
+  if (!text) return
+  const parsed = parseStructuredData(text)
+  if (!parsed.ok) {
+    message.error(`无法排序：${parsed.error}`)
+    return
+  }
+
+  const sorted = sortObjectKeys(parsed.value, nextSortAsc.value ? 'asc' : 'desc')
+  setEditorContent(JSON.stringify(sorted, null, 2), parsed.format === 'json' ? null : parsed.format)
+  nextSortAsc.value = !nextSortAsc.value
 }
 
 // 转义：把整段文本转为 JSON 字符串字面量（可直接放进 Java/JS 的 "..." 中）

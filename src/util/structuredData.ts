@@ -1,8 +1,9 @@
 import { XMLParser, XMLValidator } from 'fast-xml-parser'
 import { jsonrepair } from 'jsonrepair'
 import { parseAllDocuments } from 'yaml'
+import { looksLikeJavaToString, parseJavaToString } from './javaToString'
 
-export type StructuredDataFormat = 'json' | 'xml' | 'yaml'
+export type StructuredDataFormat = 'json' | 'xml' | 'yaml' | 'java'
 
 export type StructuredDataParseResult =
   | {
@@ -45,10 +46,33 @@ const errorText = (error: unknown) => {
 export const structuredDataFormatLabel: Record<StructuredDataFormat, string> = {
   json: 'JSON',
   xml: 'XML',
-  yaml: 'YAML'
+  yaml: 'YAML',
+  java: 'Java toString'
 }
 
 export const looksLikeXml = (text: string) => text.trimStart().startsWith('<')
+
+export type SortDirection = 'asc' | 'desc'
+
+const keyCollator = new Intl.Collator('zh', { numeric: true })
+
+/**
+ * 递归按 key 排序对象。数组只递归处理元素，不改变元素顺序（数组顺序通常有业务含义）。
+ * 注意：JS 规定纯数字字符串的 key 始终按数值升序排在最前，这类 key 不受方向影响。
+ */
+export const sortObjectKeys = (value: unknown, direction: SortDirection = 'asc'): unknown => {
+  if (Array.isArray(value)) return value.map((item) => sortObjectKeys(item, direction))
+  if (value === null || typeof value !== 'object') return value
+
+  const source = value as Record<string, unknown>
+  const factor = direction === 'desc' ? -1 : 1
+  const result: Record<string, unknown> = {}
+
+  for (const key of Object.keys(source).sort((a, b) => factor * keyCollator.compare(a, b))) {
+    result[key] = sortObjectKeys(source[key], direction)
+  }
+  return result
+}
 
 export const looksLikeYaml = (text: string) => {
   const value = text.trim()
@@ -134,6 +158,12 @@ const parseYaml = (text: string): StructuredDataParseResult => {
   }
 }
 
+const parseJava = (text: string): StructuredDataParseResult => {
+  const result = parseJavaToString(text)
+  if (result.ok) return { ok: true, format: 'java', value: result.value }
+  return { ok: false, format: 'java', error: result.error }
+}
+
 const extractJsonBlocks = (text: string) => {
   const blocks: unknown[] = []
   let index = 0
@@ -189,6 +219,13 @@ export const parseStructuredData = (text: string): StructuredDataParseResult => 
   }
 
   if (looksLikeXml(value)) return parseXml(value)
+
+  // Java toString（Foo(a=1) / {k=v}）先于 JSON 修复与 YAML：
+  // 这两者都可能把 `a=1` 这类内容“修”成完全错误的结构。解析失败则继续往下走。
+  if (looksLikeJavaToString(value)) {
+    const javaResult = parseJava(value)
+    if (javaResult.ok) return javaResult
+  }
 
   // 以 { / [ 开头时优先走 JSON 修复：YAML flow 会把 `{a:1,}` 误解析成 `{"a:1": null}`。
   if (/^[{[]/.test(value)) {
